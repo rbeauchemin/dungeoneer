@@ -1,8 +1,12 @@
 import json
-from src.common import roll_dice_discard_lowest, roll_dice
-from src.species import Aasimar
+from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals
+from src.species import Aasimar, Dragonborn, Goblin
 
-species_match = {"Aasimar": Aasimar}
+species_match = {
+    "Aasimar": Aasimar,
+    "Dragonborn": Dragonborn,
+    "Goblin": Goblin
+}
 
 
 with open('src/rules/json/01 races.json') as f:
@@ -14,13 +18,14 @@ with open('src/rules/json/04 equipment.json') as f:
 
 
 class Character:
-    def __init__(self, name, species, classes, equipment=[], spells=[], description="", ability_score_bonuses={}):
+    def __init__(self, name, species, classes, equipment=[], spells=[], description="", ability_score_bonuses={}, **kwargs):
         self.todo = []
         self.name = name
         self.description = description
         self.active_effects = []
         # SET ALL SPECIES ATTRIBUTES
-        self.species = species_match.get(species)()
+        self.species = species_match.get(species)(**kwargs)
+        self.todo += self.species.todo
         self.description += " " if self.description else "" + self.species.description
         self.size = self.species.size
         self.speed = self.species.speed
@@ -83,10 +88,16 @@ class Character:
         return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.equipment)}"
 
     def level_up(self, class_):
+        if class_ not in [cls["name"] for cls in self.classes]:
+            self.classes.append({"name": class_, "level": 1})
+        else:
+            for cls in self.classes:
+                if cls["name"] == class_:
+                    cls["level"] += 1
         self.level += 1
         self.proficiency_bonus = 2 + (self.level - 1) // 4
         self.species.proficiency_bonus = self.proficiency_bonus
-        self.species.level += 1
+        self.species.level = self.level
         # TODO: Add class features, spells, and equipment based on new level and which class is being leveled up
 
     def add_equipment(self, item):
@@ -122,25 +133,25 @@ class Character:
         # TODO: Implement attack logic
         pass
 
-    def cast_spell(self, spell, target=None):
+    def cast_spell(self, spell, targets=[]):
         for s in self.spells:
             if s.name == spell:
                 if s.uses_left is None or s.uses_left > 0:
                     if s.uses_left is not None:
                         s.uses_left -= 1
-                    s.cast(self, target or self)
+                    s.cast(self, targets or [self])
                 else:
                     print(f"No uses left for {s.name}.")
                 return
         print(f"{self.name} does not know the spell {spell}.")
 
-    def use_special_ability(self, ability, target=None):
+    def use_special_ability(self, ability, targets=[]):
         for a in self.special_abilities:
             if a.name == ability:
                 if a.uses_left is None or a.uses_left > 0:
                     if a.uses_left is not None:
                         a.uses_left -= 1
-                    a.cast(self, target or self)
+                    a.cast(self, targets or [self])
                 else:
                     print(f"No uses left for {a.name}.")
                 return
@@ -149,6 +160,19 @@ class Character:
     def use_ability(self, ability):
         # TODO: Implement ability usage logic
         pass
+
+    def roll_save(self, ability, beat):
+        roll = roll_dice(1, 20)
+        bonus = self.get_ability_bonus(ability)
+        if ability in self.advantages["Saving Throws"]:
+            roll2 = roll_dice(1, 20)
+            roll = max(roll, roll2)
+        if ability in self.proficiencies["Saving Throws"]:
+            bonus += self.proficiency_bonus
+        total = roll + bonus
+        print(f"{self.name} rolls a {ability} saving throw: {roll} + {bonus} = {total}")
+        success, total = handle_roll_criticals(roll, total, beat)
+        return success, total
 
     def rest(self, long=False):
         self.species.rest(long=long)

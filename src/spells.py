@@ -1,5 +1,5 @@
 class Spell:
-    def __init__(self, name, casting_time, range_, components, duration, description, level=0, school=None, ability=None, cooldown=None, uses_left=None, level_requirement=1, choices=[], cast=None):
+    def __init__(self, name, casting_time, range_, components, duration, description, save=None, level=0, school=None, ability=None, cooldown=None, uses_left=None, level_requirement=1, choices=[], cast=None):
         self.name = name
         self.todo = []
         self.level = level

@@ -31,7 +31,7 @@ def test_aasimar_abilities():
         }
     )
     char2.current_hp = 1
-    char.use_special_ability("Healing Hands", target=char2)
+    char.use_special_ability("Healing Hands", targets=[char2])
     assert char2.current_hp > 1, "Healing Hands did not heal the target properly"
     char.use_special_ability("Celestial Revelation: Heavenly Wings")
     assert char.flying_speed == 0, "Heavenly Wings shouldn't work at level 1"
@@ -40,15 +40,51 @@ def test_aasimar_abilities():
     char2.use_special_ability("Celestial Revelation: Inner Radiance")
     assert "Celestial Revelation: Inner Radiance" not in char2.active_effects, "Inner Radiance was allowed to be set even though no uses were left due to shared cooldown"
     char2.current_hp = 1
-    char.use_special_ability("Healing Hands", target=char2)
+    char.use_special_ability("Healing Hands", targets=[char2])
     assert char2.current_hp == 1, "Healing Hands was allowed to be used twice when only one use was allowed"
     char.current_hp = 1
     char.rest(long=True)
     assert char.current_hp == char.max_hp, "Long rest did not restore character to full health"
-    char.use_special_ability("Healing Hands", target=char2)
+    char.use_special_ability("Healing Hands", targets=[char2])
     assert char2.current_hp > 1, "Healing Hands did not heal the target properly after long rest"
+
+
+def test_dragonborn_abilities():
+    char = Character(
+        name="Drake",
+        species="Dragonborn",
+        classes=[{"name": "Fighter", "level": 5}],
+        description="Drake is a fierce dragonborn warrior, known for his strength and fiery breath.",
+        ability_score_bonuses={
+            "Strength": 16,
+            "Dexterity": 12,
+            "Constitution": 14,
+            "Intelligence": 10,
+            "Wisdom": 12,
+            "Charisma": 14
+        },
+        ancestry="Red"
+    )
+    char2 = Character(
+        name="Gobby",
+        species="Goblin",
+        classes=[{"name": "Rogue", "level": 2}],
+        description="A sneaky goblin, always looking for trouble.",
+        ability_score_bonuses={
+            "Strength": 8,
+            "Dexterity": 14,
+            "Constitution": 10,
+            "Intelligence": 10,
+            "Wisdom": 8,
+            "Charisma": 8
+        }
+    )
+    char2.current_hp = 20
+    char.use_special_ability("Breath Weapon: Cone", targets=[char2])
+    assert char2.current_hp < 20, "Breath Weapon did not deal damage properly"
 
 
 if __name__ == "__main__":
     test_aasimar_abilities()
+    test_dragonborn_abilities()
     print("All tests passed.")
