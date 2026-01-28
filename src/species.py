@@ -330,6 +330,156 @@ class Elf(Species):
             ]
 
 
+# TODO: Implement other species below. I used auto-generation for these, so they are not accurate yet
+class Gnome(Species):
+    def __init__(self):
+        super().__init__()
+        self.description = "Gnomes are small, intelligent humanoids known for their curiosity, inventiveness, and affinity for magic. They typically stand between 3 and 4 feet tall and have a keen intellect that drives them to explore the world around them. Gnomes are often skilled tinkerers and inventors, creating intricate devices and gadgets. They have a natural talent for illusion magic and are known for their playful and mischievous nature. Gnomes value knowledge, creativity, and community, often forming close-knit societies where they can share their discoveries and inventions."
+        self.creature_type = "Humanoid"
+        self.size = "Small"
+        self.speed = 25
+        self.species = "Gnome"
+        self.resistances = []
+        self.vision = "Darkvision of 60ft"
+        self.full_rest_hours = 8
+        self.special_abilities = [
+            Spell(
+                name="Gnome Cunning",
+                casting_time="Passive",
+                range_="Self",
+                components=[],
+                duration="Permanent",
+                description="You have advantage on all Intelligence, Wisdom, and Charisma saving throws against magic.",
+                cast=lambda char, targets: print(f"{char.name} uses Gnome Cunning to resist magical effects.")
+            )
+        ]
+
+
+class Goliath(Species):
+    def __init__(self):
+        super().__init__()
+        self.description = "Goliaths are towering humanoids known for their immense strength, endurance, and competitive nature. They typically stand between 7 and 8 feet tall and have muscular builds covered in stone-like skin with distinctive markings. Goliaths hail from mountainous regions, where they have adapted to harsh environments and rugged terrain. They are natural athletes, excelling in physical challenges and feats of strength. Goliaths value self-improvement, honor, and camaraderie, often engaging in friendly competitions to test their abilities. Despite their imposing appearance, goliaths are known for their sense of humor and strong community bonds."
+        self.creature_type = "Humanoid"
+        self.size = "Medium"
+        self.speed = 30
+        self.species = "Goliath"
+        self.resistances = []
+        self.vision = "Darkvision of 60ft"
+        self.full_rest_hours = 8
+        self.special_abilities = [
+            Spell(
+                name="Stone's Endurance",
+                casting_time="Reaction",
+                range_="Self",
+                components=[],
+                duration="Instantaneous",
+                description="You can use your reaction to reduce damage dealt to you by 1d12 + your Constitution modifier. Once you use this trait, you can't use it again until you finish a short or long rest.",
+                cast=lambda char, targets: print(f"{char.name} uses Stone's Endurance to reduce incoming damage.")
+            )
+        ]
+
+
+class Halfling(Species):
+    def __init__(self, subrace: Literal["Lightfoot", "Stout"] = "Lightfoot"):
+        super().__init__()
+        self.description = "Halflings are small, nimble humanoids known for their cheerful disposition, resourcefulness, and strong sense of community. They typically stand around 3 feet tall and have a slender build. Halflings are known for their luck and ability to avoid danger, often finding themselves in fortunate situations. They value comfort, friendship, and simple pleasures, often living in close-knit villages or communities. Halflings are skilled at stealth and are adept at moving quietly through their surroundings. They have a natural curiosity and love for adventure, often embarking on journeys to explore the wider world."
+        self.creature_type = "Humanoid"
+        self.size = "Small"
+        self.speed = 25
+        self.subrace = subrace
+        self.species = "Halfling"
+        self.resistances = []
+        self.advantages = {
+            "Saving Throws": ["Fear"]
+        }
+        self.vision = "Standard"
+        self.full_rest_hours = 8
+        self.special_abilities = [
+            Spell(
+                name="Lucky",
+                casting_time="Passive",
+                range_="Self",
+                components=[],
+                duration="Permanent",
+                description="When you roll a 1 on an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll.",
+                cast=lambda char, targets: print(f"{char.name} uses Lucky to reroll a 1 on a d20 roll.")
+            )
+        ]
+
+
+class Human(Species):
+    def __init__(self):
+        super().__init__()
+        self.description = "Humans are the most adaptable and ambitious of the common races."
+        self.creature_type = "Humanoid"
+        self.size = "Medium"
+        self.speed = 30
+        self.species = "Human"
+        self.resistances = []
+        self.vision = "Standard"
+        self.full_rest_hours = 8
+
+
+class Orc(Species):
+    def __init__(self):
+        super().__init__()
+        self.description = "Orcs are brutish and aggressive humanoids known for their strength, ferocity, and tribal societies. They typically stand between 6 and 7 feet tall and have muscular builds with greenish or grayish skin tones. Orcs are often depicted as warriors and raiders, valuing strength and combat prowess above all else. They live in harsh environments, such as wastelands or mountains, where they have adapted to survive through sheer toughness and resilience. Orcs have a strong sense of community within their tribes, often engaging in rituals and traditions that celebrate their martial culture."
+        self.creature_type = "Humanoid"
+        self.size = "Medium"
+        self.speed = 30
+        self.species = "Orc"
+        self.resistances = []
+        self.advantages = {
+            "Saving Throws": ["Intimidation"]
+        }
+        self.vision = "Darkvision of 60ft"
+        self.full_rest_hours = 8
+        self.special_abilities = [
+            Spell(
+                name="Relentless Endurance",
+                casting_time="Passive",
+                range_="Self",
+                components=[],
+                duration="Instantaneous",
+                description="When you are reduced to 0 hit points but not killed outright, you can drop to 1 hit point instead. You can't use this feature again until you finish a long rest.",
+                cast=lambda char, targets: print(f"{char.name} uses Relentless Endurance to stay standing when reduced to 0 HP.")
+            )
+        ]
+
+
+class Tiefling(Species):
+    def __init__(self):
+        super().__init__()
+        self.description = "Tieflings are humanoids with infernal heritage, often characterized by their distinctive horns, tails, and other fiendish features. They typically stand between 5 and 6 feet tall and have a variety of skin tones, ranging from deep reds and purples to more human-like shades. Tieflings are known for their cunning, charisma, and resilience, often navigating the world with a mix of charm and suspicion due to their fiendish ancestry. They possess innate magical abilities, often related to fire and darkness, which they can use to their advantage. Tieflings value individuality and self-reliance, frequently forging their own paths in life despite the prejudices they may face from others."
+        self.creature_type = "Humanoid"
+        self.size = "Medium"
+        self.speed = 30
+        self.species = "Tiefling"
+        self.resistances = ["Fire"]
+        self.vision = "Darkvision of 60ft"
+        self.full_rest_hours = 8
+        self.special_abilities = [
+            Spell(
+                name="Hellish Resistance",
+                casting_time="Passive",
+                range_="Self",
+                components=[],
+                duration="Permanent",
+                description="You have resistance to fire damage.",
+                cast=lambda char, targets: print(f"{char.name} uses Hellish Resistance to resist fire damage.")
+            ),
+            Spell(
+                name="Infernal Legacy",
+                casting_time="Action",
+                range_="30ft",
+                components=[],
+                duration="Instantaneous",
+                description="You can cast the Thaumaturgy cantrip. At 3rd level, you can cast Hellish Rebuke as a 2nd-level spell once per long rest. At 5th level, you can cast Darkness once per long rest.",
+                cast=lambda char, targets: print(f"{char.name} uses Infernal Legacy to cast innate spells.")
+            )
+        ]
+
+
 if __name__ == "__main__":
     aasimar = Aasimar()
     print(aasimar.description)

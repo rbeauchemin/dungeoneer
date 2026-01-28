@@ -1,6 +1,6 @@
 import json
 from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals
-from src.species import Goblin, Aasimar, Dragonborn, Dwarf, Elf
+from src.species import Goblin, Aasimar, Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling, Human, Orc, Tiefling
 
 species_match = {
     "Goblin": Goblin,
@@ -8,6 +8,12 @@ species_match = {
     "Dragonborn": Dragonborn,
     "Dwarf": Dwarf,
     "Elf": Elf,
+    "Gnome": Gnome,
+    "Goliath": Goliath,
+    "Halfling": Halfling,
+    "Human": Human,
+    "Orc": Orc,
+    "Tiefling": Tiefling
 }
 
 
