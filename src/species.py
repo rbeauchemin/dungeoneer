@@ -1,3 +1,4 @@
+from typing import Literal
 from src.common import roll_dice
 from src.spells import Spell, Light
 
@@ -8,6 +9,8 @@ class Species:
         self.spells = []
         self.special_abilities = {}
         self.resistances = []
+        self.advantages = {}
+        self.vision = "Standard"
         self.todo = []
         self.size = "Medium"
         self.speed = 30
@@ -25,9 +28,7 @@ class Goblin(Species):
         self.description = "Goblins are small, green-skinned humanoids known for their cunning and mischievous nature. They are often found in tribes or clans, living in caves or forests. Goblins are quick and agile, making them adept at ambushes and hit-and-run tactics. They have a knack for scavenging and repurposing items they find, often creating makeshift weapons and armor. Despite their small size, goblins can be quite dangerous when encountered in groups. They are known for their sharp teeth and pointed ears, as well as their distinctive, high-pitched voices."
         self.creature_type = "Humanoid"
         self.size = "Small"
-        self.speed = 30
         self.species = "Goblin"
-        self.special_tags = []
         self.resistances = []
         self.vision = "Darkvision"
         self.full_rest_hours = 8
@@ -45,7 +46,7 @@ class Goblin(Species):
 
 
 class Aasimar(Species):
-    def __init__(self, size="Medium"):
+    def __init__(self, size: Literal["Small", "Medium"] = "Medium"):
         super().__init__()
         self.description = "Aasimar are beings touched by the divine, often born of celestial heritage. They possess an innate connection to the forces of good and light, which manifests in their radiant appearance and benevolent nature. Aasimar are often driven by a strong sense of justice and a desire to protect the innocent. They are known for their healing abilities and their capacity to inspire hope in others. Aasimar typically have a striking appearance, with features that reflect their celestial lineage, such as glowing eyes or a subtle halo of light."
         self.creature_type = "Humanoid"
@@ -57,9 +58,8 @@ class Aasimar(Species):
             self.size = "Medium"
         self.spells = [Light(ability="Charisma", level=0)]
         self.resistances = ["Necrotic", "Radiant"]
-        self.vision = "Darkvision"
+        self.vision = "Darkvision of 60ft"
         self.species = "Aasimar"
-        self.special_tags = []
         self.shared_celestial_revelation_tracker = 1
         self.full_rest_hours = 8
         self.special_abilities = [
@@ -150,7 +150,7 @@ class Aasimar(Species):
 
 
 class Dragonborn(Species):
-    def __init__(self, ancestry):
+    def __init__(self, ancestry: Literal["Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green", "Red", "Silver", "White"]):
         super().__init__()
         self.todo = ["Select your draconic ancestry, which determines the damage type of your breath weapon and your resistance to that damage type."]
         self.description = "Dragonborn are proud, honorable warriors with draconic ancestry. They possess a strong sense of duty and a desire to prove themselves through acts of valor. Dragonborn are known for their strength, resilience, and their ability to breathe elemental energy. They often have a strong connection to their clan and value loyalty and camaraderie. Dragonborn typically have scales that reflect their draconic heritage, with colors ranging from metallic hues to vibrant shades associated with different types of dragons."
@@ -158,9 +158,8 @@ class Dragonborn(Species):
         self.size = "Medium"
         self.speed = 30
         self.species = "Dragonborn"
-        self.special_tags = []
         self.resistances = []
-        self.vision = "Darkvision"
+        self.vision = "Darkvision of 60ft"
         self.full_rest_hours = 8
         self.proficiency_bonus = 2
         self.breaths_left = self.proficiency_bonus + 0
@@ -261,6 +260,74 @@ class Dragonborn(Species):
                     ability.uses_left = self.breaths_left
                 elif ability.cooldown == "Long Rest":
                     ability.uses_left = 1
+
+
+class Dwarf(Species):
+    def __init__(self):
+        super().__init__()
+        self.description = "Dwarves are stout and sturdy humanoids known for their resilience, craftsmanship, and strong sense of community. They typically stand between 4 and 5 feet tall but are broad-shouldered and muscular. Dwarves have a deep connection to the earth, often dwelling in mountainous regions or underground cities. They are skilled miners and blacksmiths, renowned for their ability to create finely crafted weapons, armor, and jewelry. Dwarves value tradition, honor, and loyalty, often forming tight-knit clans or guilds. They have a reputation for being fierce warriors, especially when defending their homes or allies."
+        self.creature_type = "Humanoid"
+        self.size = "Medium"
+        self.speed = 25
+        self.species = "Dwarf"
+        self.resistances = ["Poison"]
+        self.advantages = {"Saving Throws": ["Poison"]}
+        self.vision = "Darkvision of 120ft"
+        self.full_rest_hours = 8
+        self.special_abilities = [
+            Spell(
+                name="Stonecunning",
+                casting_time="Passive",
+                range_="Self",
+                components=[],
+                duration="Permanent",
+                description="Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient in the History skill and add double your proficiency bonus to the check.",
+                cast=lambda char, targets: print(f"{char.name} uses Stonecunning to gain expertise in History checks related to stonework.")
+            )
+        ]
+
+
+class Elf(Species):
+    def __init__(self, lineage: Literal["High", "Wood", "Drow"] = "Wood", extra_proficiency: Literal["Perception", "Insight", "Survival"] = "Perception"):
+        super().__init__()
+        self.todo = []
+        self.description = "Elves are graceful and agile humanoids known for their keen senses, longevity, and deep connection to nature and magic. They typically stand between 5 and 6 feet tall, with slender builds and pointed ears. Elves have a natural affinity for the arcane arts and are often skilled spellcasters. They are known for their exceptional dexterity and keen eyesight, making them adept archers and scouts. Elves value beauty, art, and knowledge, often living in harmony with the natural world. High elves are known for their magical prowess, wood elves for their stealth and connection to the forest, and dark elves (drow) for their subterranean societies and unique abilities."
+        self.creature_type = "Humanoid"
+        self.size = "Medium"
+        if lineage == "Wood":
+            self.speed = 35
+        else:
+            self.speed = 30
+        self.species = "Elf"
+        self.lineage = lineage
+        self.extra_proficiency = extra_proficiency
+        self.resistances = []
+        self.advantages = {
+            "Saving Throws": ["Charm"]
+        }
+        if lineage == "Drow":
+            self.vision = "Darkvision of 120ft"
+        else:
+            self.vision = "Darkvision of 60ft"
+        self.full_rest_hours = 4
+        self.vision = "Darkvision of 60ft"
+        self.full_rest_hours = 8
+        # TODO: Add lineage spells at 1, 3, 5.
+        # Drow gets dancing lights, faerie fire, and darkness.
+        # High gets Prestidigitation and can replace with different wizard cantrips every long rest, detect magic, misty step.
+        # Wood gets druidcraft, longstrider, pass without trace.
+        if lineage == "High":
+            self.special_abilities = [
+                Spell(
+                    name="Fey Ancestry",
+                    casting_time="Passive",
+                    range_="Self",
+                    components=[],
+                    duration="Permanent",
+                    description="You have advantage on saving throws against being charmed, and magic can't put you to sleep.",
+                    cast=lambda char, targets: print(f"{char.name} uses Fey Ancestry to resist charm and sleep effects.")
+                )
+            ]
 
 
 if __name__ == "__main__":

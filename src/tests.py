@@ -30,6 +30,7 @@ def test_aasimar_abilities():
             "Charisma": 14
         }
     )
+    print(f"{char2.name} is on death's door!")
     char2.current_hp = 1
     char.use_special_ability("Healing Hands", targets=[char2])
     assert char2.current_hp > 1, "Healing Hands did not heal the target properly"
@@ -39,9 +40,11 @@ def test_aasimar_abilities():
     assert char2.flying_speed == char2.speed, "Heavenly Wings did not set flying speed correctly"
     char2.use_special_ability("Celestial Revelation: Inner Radiance")
     assert "Celestial Revelation: Inner Radiance" not in char2.active_effects, "Inner Radiance was allowed to be set even though no uses were left due to shared cooldown"
+    print(f"{char2.name} is on death's door!")
     char2.current_hp = 1
     char.use_special_ability("Healing Hands", targets=[char2])
     assert char2.current_hp == 1, "Healing Hands was allowed to be used twice when only one use was allowed"
+    print(f"{char.name} is on death's door!")
     char.current_hp = 1
     char.rest(long=True)
     assert char.current_hp == char.max_hp, "Long rest did not restore character to full health"

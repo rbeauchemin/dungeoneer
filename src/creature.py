@@ -1,11 +1,13 @@
 import json
 from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals
-from src.species import Aasimar, Dragonborn, Goblin
+from src.species import Goblin, Aasimar, Dragonborn, Dwarf, Elf
 
 species_match = {
+    "Goblin": Goblin,
     "Aasimar": Aasimar,
     "Dragonborn": Dragonborn,
-    "Goblin": Goblin
+    "Dwarf": Dwarf,
+    "Elf": Elf,
 }
 
 
@@ -69,6 +71,8 @@ class Character:
             "Skills": []
         }
         self.max_hp = 10 + self.get_ability_bonus("Constitution")
+        if self.species.species == "Dwarf":
+            self.max_hp += 1
         self.current_hp = self.max_hp
         if len(ability_score_bonuses) > 0:
             for ability, bonus in ability_score_bonuses.items():
@@ -94,6 +98,9 @@ class Character:
             for cls in self.classes:
                 if cls["name"] == class_:
                     cls["level"] += 1
+        if self.species.species == "Dwarf":
+            self.max_hp += 1
+        # ADD HP BASED ON CLASS HIT DIE
         self.level += 1
         self.proficiency_bonus = 2 + (self.level - 1) // 4
         self.species.proficiency_bonus = self.proficiency_bonus
