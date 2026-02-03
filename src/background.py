@@ -96,14 +96,33 @@ class Artisan(Background):
                 ],
                 "Function": self.set_tool_proficiency
             },
+            {
+                "Text": "Select either 50 gold or starting equipment (Artisan's tools you are proficient in, 2 pouches, Traveler's Clothes, and 32 gold).",
+                "Options": [
+                    "50 gold",
+                    "Starting Equipment"
+                ],
+                "Function": self.grant_starting_equipment
+            }
         ]
+        self.tool_proficiency = ""
         self.description = "You learned your trade from a master and are proficient with the use of a set of artisan's tools. You are part of a guild, which provides you with certain benefits and obligations."
-        self.proficiencies["Tools"] = [tool_proficiency]
-        self.proficiencies["Skills"] = ["Insight", "Persuasion"]
-        self.starting_equipment = [
-            f"{tool_proficiency} set",
-            "Letter from guild",
-            "Traveler's Clothes",
-            "15 gold"
-        ]
+        self.proficiencies["Skills"] = ["Investigation", "Persuasion"]
         self.ability_scores = ["Strength", "Dexterity", "Intelligence"]
+
+    def set_tool_proficiency(self, character, choice, **kwargs):
+        self.tool_proficiency = choice
+        character.proficiencies["Tools"].append(choice)
+        return character
+
+    def grant_starting_equipment(self, character, choice, **kwargs):
+        if choice == "50 gold":
+            character.gold += 50
+        else:
+            character.equipment += [
+                self.tool_proficiency,
+                "2 pouches",
+                "Traveler's Clothes"
+            ]
+            character.gold += 32
+        return character
