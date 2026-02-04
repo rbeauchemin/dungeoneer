@@ -57,25 +57,34 @@ class Character:
         self.spells += spells
         self.proficiency_bonus = 2 + (self.level - 1) // 4
         self.species.proficiency_bonus = self.proficiency_bonus
-        self.ability_scores = {
-            "Strength": 0,
-            "Dexterity": 0,
-            "Constitution": 0,
-            "Intelligence": 0,
-            "Wisdom": 0,
-            "Charisma": 0
-        }
-        self.proficiencies = {
-            "Armor": [],
-            "Weapons": [],
-            "Tools": [],
-            "Saving Throws": [],
-            "Skills": []
-        }
-        self.advantages = {
-            "Saving Throws": [],
-            "Skills": []
-        }
+        if "ability_scores" in kwargs:
+            self.ability_scores = kwargs['ability_scores']
+        else:
+            self.ability_scores = {
+                "Strength": 0,
+                "Dexterity": 0,
+                "Constitution": 0,
+                "Intelligence": 0,
+                "Wisdom": 0,
+                "Charisma": 0
+            }
+        if "proficiencies" in kwargs:
+            self.proficiencies = kwargs['proficiencies']
+        else:
+            self.proficiencies = {
+                "Armor": [],
+                "Weapons": [],
+                "Tools": [],
+                "Saving Throws": [],
+                "Skills": []
+            }
+        if "advantages" in kwargs:
+            self.advantages = kwargs['advantages']
+        else:
+            self.advantages = {
+                "Saving Throws": [],
+                "Skills": []
+            }
         self.max_hp = 10 + self.get_ability_bonus("Constitution")
         if self.species.species == "Dwarf":
             self.max_hp += 1
@@ -89,6 +98,10 @@ class Character:
                 score = roll_dice_discard_lowest(6, 4)
                 self.ability_scores[ability] = score
                 print(f"{ability}: {score}")
+        if "feats" in kwargs:
+            self.feats = kwargs['feats']
+        else:
+            self.feats = []
         # TODO: Handle traits, resistances, proficiencies, special abilities
         self.description = self.description + " " + description
         self.species.ability_scores = self.ability_scores
@@ -106,6 +119,8 @@ class Character:
                     cls["level"] += 1
         if self.species.species == "Dwarf":
             self.max_hp += 1
+        if self.feats and "Tough" in [feat.name for feat in self.feats]:
+            self.max_hp += 2
         # ADD HP BASED ON CLASS HIT DIE
         self.level += 1
         self.proficiency_bonus = 2 + (self.level - 1) // 4

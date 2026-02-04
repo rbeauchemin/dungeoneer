@@ -1,4 +1,4 @@
-from src.creature import Character
+from src.creatures import Character
 
 
 def test_aasimar_abilities():
