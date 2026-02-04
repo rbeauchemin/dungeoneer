@@ -3,10 +3,10 @@ from src.creatures import Character
 
 def test_aasimar_abilities():
     char = Character(
-        name="Ysraela",
+        name="Ylera",
         species="Aasimar",
         classes=[{"name": "Ranger", "level": 1}],
-        description="Ysraela is an angelic ranger, known for her sharp senses and unwavering determination in the face of danger.",
+        description="Ylera is an angelic ranger, known for her sharp senses and unwavering determination in the face of danger.",
         ability_score_bonuses={
             "Strength": 12,
             "Dexterity": 16,
