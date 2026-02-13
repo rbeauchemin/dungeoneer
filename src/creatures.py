@@ -1,6 +1,7 @@
 import json
 from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals
 from src.species import Goblin, Aasimar, Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling, Human, Orc, Tiefling
+from src.classes import Class
 
 species_match = {
     "Goblin": Goblin,
@@ -47,13 +48,11 @@ class Character:
         # SET ALL BACKGROUND ATTRIBUTES
         # SET ALL CLASS ATTRIBUTES
         self.classes = classes
-        self.level = sum(cls["level"] for cls in classes)
+        self.level = sum(cls.level for cls in classes)
         self.species.level = self.level
-        if self.level == 1 and equipment == []:
-            self.equipment = ["Short Sword", "Leather Armor"]
-        else:
-            self.equipment = []
+        self.equipment = []
         self.equipment += equipment
+        self.equipped_items = []
         self.spells += spells
         self.proficiency_bonus = 2 + (self.level - 1) // 4
         self.species.proficiency_bonus = self.proficiency_bonus
@@ -76,10 +75,18 @@ class Character:
                 "Weapons": [],
                 "Tools": [],
                 "Saving Throws": [],
-                "Skills": []
+                "Skills": [],
+                "Special": []
             }
         if "advantages" in kwargs:
             self.advantages = kwargs['advantages']
+        else:
+            self.advantages = {
+                "Saving Throws": [],
+                "Skills": []
+            }
+        if "disadvantages" in kwargs:
+            self.disadvantages = kwargs['disadvantages']
         else:
             self.advantages = {
                 "Saving Throws": [],
@@ -106,17 +113,18 @@ class Character:
         self.description = self.description + " " + description
         self.species.ability_scores = self.ability_scores
         self.species.advantages = self.advantages
+        self.spellcasting_ability = self.classes[0]["spell_casting_ability"] if self.classes else "None"
 
     def __str__(self):
         return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.equipment)}"
 
     def level_up(self, class_):
-        if class_ not in [cls["name"] for cls in self.classes]:
-            self.classes.append({"name": class_, "level": 1})
+        if class_ not in [cls.name for cls in self.classes]:
+            self.classes.append(Class(name=class_, level=1))
         else:
             for cls in self.classes:
-                if cls["name"] == class_:
-                    cls["level"] += 1
+                if cls.name == class_:
+                    cls.level_up(self)
         if self.species.species == "Dwarf":
             self.max_hp += 1
         if self.feats and "Tough" in [feat.name for feat in self.feats]:
@@ -131,8 +139,70 @@ class Character:
     def add_equipment(self, item):
         self.equipment.append(item)
 
+    def equip_item(self, item):
+        if item in self.equipment:
+            hands_left = 2
+            for equipped_item in self.equipped_items:
+                if equipped_item.type == "Weapon":
+                    if "Two-Handed" in equipped_item.properties:
+                        hands_left -= 2
+                    else:
+                        hands_left -= 1
+                if equipped_item.type == "Shield":
+                    hands_left -= 1
+            if item.type == "Weapon":
+                if "Two-Handed" in item.properties and hands_left < 2:
+                    print(f"Not enough hands to equip {item.name}. Unequip some items first.")
+                    return
+                elif hands_left < 1:
+                    print(f"Not enough hands to equip {item.name}. Unequip some items first.")
+                    return
+            elif item.type == "Shield":
+                # can't have two shields
+                for equipped_item in self.equipped_items:
+                    if equipped_item.type == "Shield":
+                        self.unequip_item(equipped_item)
+            elif item.type == "Armor":
+                # can't have two armors
+                for equipped_item in self.equipped_items:
+                    if equipped_item.type == "Armor":
+                        self.unequip_item(equipped_item)
+            self.equipped_items.append(item)
+            self.equipment.remove(item)
+        else:
+            print(f"{self.name} does not have {item} in their inventory.")
+
+    def unequip_item(self, item):
+        if item in self.equipped_items:
+            self.equipped_items.remove(item)
+            self.equipment.append(item)
+        else:
+            print(f"{self.name} has unequipped {item}.")
+
     def get_ability_bonus(self, ability):
         return (self.ability_scores[ability] - 10) // 2
+
+    def get_armor_class(self):
+        # Base AC
+        ac = 10 + self.get_ability_bonus("Dexterity")
+        unarmored = True
+        for item in self.equipped_items:
+            if item.type == "Armor":
+                ac += item.ac
+                unarmored = False
+        # Unarmored defense for barbarians
+        if self.classes and self.classes[0].name == "Barbarian" and unarmored:
+            ac = 10 + self.get_ability_bonus("Dexterity") + self.get_ability_bonus("Constitution")
+        # Unarmored defense for monks
+        if self.classes and self.classes[0].name == "Monk" and unarmored:
+            ac = 10 + self.get_ability_bonus("Dexterity") + self.get_ability_bonus("Wisdom")
+        for item in self.equipped_items:
+            if item.type == "Shield" and self.classes[0].name != "Monk" and self.proficiencies["Armor"] and "Shields" in self.proficiencies["Armor"]:
+                ac += item.ac
+        for item in self.equipped_items:
+            if item in self.species.armor:
+                ac += self.species.armor[item]
+        return ac
 
     def get_skill_bonus(self, skill):
         dnd_skills = {
@@ -213,11 +283,12 @@ class Character:
 
 # Example usage
 if __name__ == "__main__":
+    from src.classes import Barbarian
     char = Character(
-        name="Ysraela",
+        name="Ylera",
         species="Aasimar",
-        classes=[{"name": "Ranger", "level": 1}],
-        description="Ysraela is an angelic ranger, known for her sharp senses and unwavering determination in the face of danger.",
+        classes=[Barbarian(level=1)],
+        description="Ylera is an angelic barbarian, known for her sharp senses and unwavering determination in the face of danger.",
         ability_score_bonuses={
             "Strength": 12,
             "Dexterity": 16,
@@ -230,8 +301,8 @@ if __name__ == "__main__":
     char2 = Character(
         name="Thokk",
         species="Aasimar",
-        classes=[{"name": "Fighter", "level": 1}],
-        description="Thokk is a celestial warrior, wielding his sword with divine purpose and protecting the innocent from evil.",
+        classes=[Barbarian(level=1)],
+        description="Thokk is a celestial barbarian, wielding his sword with divine purpose and protecting the innocent from evil.",
         ability_score_bonuses={
             "Strength": 16,
             "Dexterity": 12,

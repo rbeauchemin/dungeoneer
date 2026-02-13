@@ -1,3 +1,6 @@
+from src.feats import Crafter, MagicInitiateCleric
+
+
 class Background:
     def __init__(self):
         self.todo = []
@@ -13,7 +16,7 @@ class Background:
         self.starting_equipment = []
 
     def select_ability_scores(self, character, choices, **kwargs):
-        """You can either add 2 to one ability and one to another, or add 1 to all three.
+        """You can either add 2 to one ability and 1 to another, or add 1 to all three.
         """
         if len(choices) == 2:
             character.ability_scores[choices[0]] += 2
@@ -36,7 +39,7 @@ class Acolyte(Background):
         # TODO: Refactor all todos to have the text, options, and function keys, and then also add number of choices allowed.
         self.todo = [
             {
-                "Text": "Select either 50 gold or starting equipment (Caligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 gold).",
+                "Text": "Select either 50 gold or starting equipment (Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 gold).",
                 "Options": [
                     "50 gold",
                     "Starting Equipment"
@@ -51,15 +54,15 @@ class Acolyte(Background):
         ]
         self.ability_scores = ["Intelligence", "Wisdom", "Charisma"]
         self.proficiencies["Skills"] = ["Insight", "Religion"]
-        self.proficiencies["Tools"] = ["Caligrapher's Supplies"]
-        # TODO Add feats!
+        self.proficiencies["Tools"] = ["Calligrapher's Supplies"]
+        self.feats += [MagicInitiateCleric]
 
     def grant_starting_equipment(self, character, choice, **kwargs):
         if choice == "50 gold":
             character.gold += 50
         else:
             character.equipment += [
-                "Caligrapher's Supplies",
+                "Calligrapher's Supplies",
                 "Book (prayers)",
                 "Holy Symbol",
                 "Parchment (10 sheets)",
@@ -109,6 +112,7 @@ class Artisan(Background):
         self.description = "You learned your trade from a master and are proficient with the use of a set of artisan's tools. You are part of a guild, which provides you with certain benefits and obligations."
         self.proficiencies["Skills"] = ["Investigation", "Persuasion"]
         self.ability_scores = ["Strength", "Dexterity", "Intelligence"]
+        self.feats += [Crafter()]
 
     def set_tool_proficiency(self, character, choice, **kwargs):
         self.tool_proficiency = choice
