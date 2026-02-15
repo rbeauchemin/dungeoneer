@@ -1,29 +1,5 @@
-import json
-from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals
-from src.species import Goblin, Aasimar, Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling, Human, Orc, Tiefling
-from src.classes import Class
-
-species_match = {
-    "Goblin": Goblin,
-    "Aasimar": Aasimar,
-    "Dragonborn": Dragonborn,
-    "Dwarf": Dwarf,
-    "Elf": Elf,
-    "Gnome": Gnome,
-    "Goliath": Goliath,
-    "Halfling": Halfling,
-    "Human": Human,
-    "Orc": Orc,
-    "Tiefling": Tiefling
-}
-
-
-with open('src/rules/json/01 races.json') as f:
-    race_data = json.load(f)
-# with open('src/rules/json/02 classes.json') as f:
-#     class_data = json.load(f)
-with open('src/rules/json/04 equipment.json') as f:
-    equipment_data = json.load(f)
+import importlib
+from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals, dnd_skills
 
 
 class Character:
@@ -31,9 +7,16 @@ class Character:
         self.todo = []
         self.name = name
         self.description = description
+        self.gold = 0
         self.active_effects = []
         # SET ALL SPECIES ATTRIBUTES
-        self.species = species_match.get(species)(**kwargs)
+        if isinstance(species, str):
+            try:
+                self.species = getattr(importlib.import_module("src.species"), species)()
+            except AttributeError:
+                raise Exception(f"Species {species} could not be found")
+        else:
+            self.species = species
         self.todo += self.species.todo
         self.description += " " if self.description else "" + self.species.description
         self.size = self.species.size
@@ -45,13 +28,14 @@ class Character:
         self.vision = self.species.vision
         self.full_rest_hours = self.species.full_rest_hours
         self.special_abilities = self.species.special_abilities
+        self.special_traits = self.species.special_traits
         # SET ALL BACKGROUND ATTRIBUTES
         # SET ALL CLASS ATTRIBUTES
         self.classes = classes
         self.level = sum(cls.level for cls in classes)
         self.species.level = self.level
-        self.equipment = []
-        self.equipment += equipment
+        self.inventory = []
+        self.inventory += equipment
         self.equipped_items = []
         self.spells += spells
         self.proficiency_bonus = 2 + (self.level - 1) // 4
@@ -116,9 +100,10 @@ class Character:
         self.spellcasting_ability = self.classes[0]["spell_casting_ability"] if self.classes else "None"
 
     def __str__(self):
-        return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.equipment)}"
+        return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.inventory)}"
 
     def level_up(self, class_):
+        from src.classes import Class
         if class_ not in [cls.name for cls in self.classes]:
             self.classes.append(Class(name=class_, level=1))
         else:
@@ -136,11 +121,34 @@ class Character:
         self.species.level = self.level
         # TODO: Add class features, spells, and equipment based on new level and which class is being leveled up
 
-    def add_equipment(self, item):
-        self.equipment.append(item)
+    def add_item(self, item, purchasing=False):
+        if isinstance(item, str):
+            try:
+                item_object = getattr(importlib.import_module("src.items"), item)()
+            except AttributeError:
+                print("Could not find the requested item")
+        else:
+            item_object = item
+        if purchasing:
+            item_object.purchase(self)
+        else:
+            self.inventory.append(item_object)
+
+    def remove_item(self, item, selling=False):
+        if isinstance(item, str):
+            try:
+                item_object = getattr(importlib.import_module("src.items"), item)()
+            except AttributeError:
+                print("Could not find the requested item")
+        else:
+            item_object = item
+        if selling:
+            item_object.sell(self)
+        else:
+            self.inventory.remove(item_object)
 
     def equip_item(self, item):
-        if item in self.equipment:
+        if item in self.inventory:
             hands_left = 2
             for equipped_item in self.equipped_items:
                 if equipped_item.type == "Weapon":
@@ -168,14 +176,14 @@ class Character:
                     if equipped_item.type == "Armor":
                         self.unequip_item(equipped_item)
             self.equipped_items.append(item)
-            self.equipment.remove(item)
+            self.inventory.remove(item)
         else:
             print(f"{self.name} does not have {item} in their inventory.")
 
     def unequip_item(self, item):
         if item in self.equipped_items:
             self.equipped_items.remove(item)
-            self.equipment.append(item)
+            self.inventory.append(item)
         else:
             print(f"{self.name} has unequipped {item}.")
 
@@ -197,7 +205,7 @@ class Character:
         if self.classes and self.classes[0].name == "Monk" and unarmored:
             ac = 10 + self.get_ability_bonus("Dexterity") + self.get_ability_bonus("Wisdom")
         for item in self.equipped_items:
-            if item.type == "Shield" and self.classes[0].name != "Monk" and self.proficiencies["Armor"] and "Shields" in self.proficiencies["Armor"]:
+            if item.type == "Shield" and self.classes[0].name != "Monk" and self.proficiencies["Armor"] and "Shield" in self.proficiencies["Armor"]:
                 ac += item.ac
         for item in self.equipped_items:
             if item in self.species.armor:
@@ -205,26 +213,6 @@ class Character:
         return ac
 
     def get_skill_bonus(self, skill):
-        dnd_skills = {
-            "Acrobatics": "Dexterity",
-            "Animal Handling": "Wisdom",
-            "Arcana": "Intelligence",
-            "Athletics": "Strength",
-            "Deception": "Charisma",
-            "History": "Intelligence",
-            "Insight": "Wisdom",
-            "Intimidation": "Charisma",
-            "Investigation": "Intelligence",
-            "Medicine": "Wisdom",
-            "Nature": "Intelligence",
-            "Perception": "Wisdom",
-            "Performance": "Charisma",
-            "Persuasion": "Charisma",
-            "Religion": "Intelligence",
-            "Sleight of Hand": "Dexterity",
-            "Stealth": "Dexterity",
-            "Survival": "Wisdom"
-        }
         return self.get_ability_bonus(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
 
     def attack(self, target, weapon):

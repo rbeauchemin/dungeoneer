@@ -28,3 +28,25 @@ def roll_dice_discard_lowest(dice_sides, num_dice=4):
     print(f"Discarding lowest roll: {min(rolls)}")
     rolls.remove(min(rolls))
     return sum(rolls)
+
+
+dnd_skills = {
+    "Acrobatics": "Dexterity",
+    "Animal Handling": "Wisdom",
+    "Arcana": "Intelligence",
+    "Athletics": "Strength",
+    "Deception": "Charisma",
+    "History": "Intelligence",
+    "Insight": "Wisdom",
+    "Intimidation": "Charisma",
+    "Investigation": "Intelligence",
+    "Medicine": "Wisdom",
+    "Nature": "Intelligence",
+    "Perception": "Wisdom",
+    "Performance": "Charisma",
+    "Persuasion": "Charisma",
+    "Religion": "Intelligence",
+    "Sleight of Hand": "Dexterity",
+    "Stealth": "Dexterity",
+    "Survival": "Wisdom"
+}

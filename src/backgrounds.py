@@ -61,7 +61,7 @@ class Acolyte(Background):
         if choice == "50 gold":
             character.gold += 50
         else:
-            character.equipment += [
+            character.inventory += [
                 "Calligrapher's Supplies",
                 "Book (prayers)",
                 "Holy Symbol",
@@ -123,7 +123,7 @@ class Artisan(Background):
         if choice == "50 gold":
             character.gold += 50
         else:
-            character.equipment += [
+            character.inventory += [
                 self.tool_proficiency,
                 "2 pouches",
                 "Traveler's Clothes"

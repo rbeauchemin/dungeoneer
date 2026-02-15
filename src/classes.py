@@ -1,5 +1,7 @@
 from src.creatures import Character
 from src.spells import Spell
+from src.items import Handaxe, Greataxe
+
 
 class Class:
     def __init__(self, name, level, subclass=None):
@@ -35,15 +37,15 @@ class Barbarian(Class):
         self.level = level
         self.hit_dice = 12
         self.primary_ability = "Strength"
-        self.proficiencies["Armor"] = ["Light Armor", "Medium Armor", "Shields"]
-        self.proficiencies["Weapons"] = ["Simple Weapons", "Martial Weapons"]
+        self.proficiencies["Armor"] = ["Light", "Medium", "Shield"]
+        self.proficiencies["Weapons"] = ["Simple", "Martial"]
         self.proficiencies["Saving Throws"] = ["Strength", "Constitution"]
         self.proficiencies["Skills"] = ["Animal Handling", "Athletics", "Intimidation", "Nature", "Perception", "Survival"]
         self.completed_levelup_to = 1
 
     def select_starting_equipment(self, character, choice, **kwargs):
         if choice == "Starting Equipment":
-            character.equipment += ["Handaxe"] * 4 + ["Greataxe", "Explorer's Pack"]
+            character.inventory += [Handaxe] * 4 + [Greataxe, "Explorer's Pack"]
             character.gold += 15
         elif choice == "Gold":
             character.gold += 75

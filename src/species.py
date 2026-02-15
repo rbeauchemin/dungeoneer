@@ -8,6 +8,7 @@ class Species:
         self.description = ""
         self.spells = []
         self.special_abilities = {}
+        self.special_traits = []
         self.resistances = []
         self.advantages = {}
         self.vision = "Standard"
@@ -18,7 +19,7 @@ class Species:
         self.flying_speed = 0
 
     def rest(self, long=False):
-        print("Resting with no special feats...")
+        print("Resting...")
         pass
 
 

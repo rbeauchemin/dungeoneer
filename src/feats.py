@@ -24,7 +24,7 @@ class Alert(Feat):
 
     def apply_to_character(self, character: Character):
         character.proficiencies["Special"] += ["Initiative"]
-        character.special_abilities += ["Initiative Swap"]
+        character.special_traits += ["Initiative Swap"]
         return character
 
 
@@ -65,7 +65,7 @@ class Crafter(Feat):
         return character
 
     def apply_to_character(self, character: Character):
-        character.special_abilities += ["Discount", "Fast Crafting"]
+        character.special_traits += ["Discount", "Fast Crafting"]
         # TODO: Add handling for crafting items during long rest and discount on nonmagical items
         return character
 
@@ -77,7 +77,7 @@ class Healer(Feat):
         self.description = "You have always cared for others, whether after battle or after illness befell your community, and gain bonuses to healing"
 
     def apply_to_character(self, character: Character):
-        character.special_abilities += ["Battle Medic", "Healing Rerolls"]
+        character.special_traits += ["Battle Medic", "Healing Rerolls"]
         return character
 
 
