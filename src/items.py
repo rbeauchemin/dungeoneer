@@ -156,6 +156,15 @@ class Armor(Item):
             character.disadvantages["Skills"] += [k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]
             character.active_effects += ["Cannot Cast Spells"]
 
+    def on_unequip(self, character: Character):
+        if self.stealth_disadvantage:
+            character.disadvantages["Skills"] = [skill for skill in character.disadvantages["Skills"] if skill != "Stealth"]
+        if character.ability_scores["Strength"] < self.strength_required:
+            character.speed += 10
+        if self.category is not None and self.category not in character.proficiencies["Armor"]:
+            character.disadvantages["Skills"] = list(set(character.disadvantages["Skills"]) - set([k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]))
+            character.active_effects = [_ for _ in character.active_effects if _ != "Cannot Cast Spells"]
+
 
 class Clothing(Armor):
     def __init__(self, name="Clothing", description=""):
