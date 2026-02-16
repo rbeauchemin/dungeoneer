@@ -46,8 +46,10 @@ class Weapon(Item):
         self.type = "Weapon"
         self.name = name
         self.description = description
-        # Simple or Martial
-        self.category = "Simple"
+        # Improvised, Simple, Martial
+        self.category = "Improvised"
+        self.damage = "1d1"
+        self.damage_type = "Bludgeoning"
         # Melee or Ranged
         self.melee_or_ranged = "Melee"
         # Properties include Ammunition, Finesse, Heavy, Light, Loading, Reach, Thrown, Two-Handed, Versatile
@@ -61,6 +63,7 @@ class Club(Weapon):
         super().__init__()
         self.name = name
         self.description = description
+        self.category = "Simple"
         self.damage = "1d4"
         self.damage_type = "Bludgeoning"
         self.properties += ["Light"]
@@ -74,6 +77,7 @@ class Dagger(Weapon):
         super().__init__()
         self.name = name
         self.description = description
+        self.category = "Simple"
         self.damage = "1d4"
         self.damage_type = "Piercing"
         self.properties += ["Finesse", "Light", "Thrown"]
@@ -89,6 +93,7 @@ class Greatclub(Weapon):
         super().__init__()
         self.name = name
         self.description = description
+        self.category = "Simple"
         # TODO: Finish filling
 
 
@@ -97,6 +102,7 @@ class Handaxe(Weapon):
         super().__init__()
         self.name = name
         self.description = description
+        self.category = "Simple"
         self.damage = "1d6"
         self.damage_type = "Slashing"
         self.properties += ["Light", "Thrown"]
@@ -127,7 +133,7 @@ class Greataxe(Weapon):
 
 
 class Armor(Item):
-    def __init__(self, name="Weapon", description=""):
+    def __init__(self, name="Armor", description=""):
         super().__init__()
         self.type = "Armor"
         self.name = name
@@ -146,7 +152,10 @@ class Armor(Item):
         ac = self.base_ac
         if self.add_dex:
             ac += min([character.get_ability_bonus("Dexterity"), self.dex_add_max])
+        return ac
 
+    # TODO: These should add and remove an "active effect" instead, so that it doesn't affect other active effects
+    # TODO: active effects should be looked at when measuring ability, skill, speed, etc checks.
     def on_equip(self, character: Character):
         if self.stealth_disadvantage:
             character.disadvantages["Skills"] += ["Stealth"]
@@ -155,6 +164,7 @@ class Armor(Item):
         if self.category is not None and self.category not in character.proficiencies["Armor"]:
             character.disadvantages["Skills"] += [k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]
             character.active_effects += ["Cannot Cast Spells"]
+        return character
 
     def on_unequip(self, character: Character):
         if self.stealth_disadvantage:
@@ -164,16 +174,21 @@ class Armor(Item):
         if self.category is not None and self.category not in character.proficiencies["Armor"]:
             character.disadvantages["Skills"] = list(set(character.disadvantages["Skills"]) - set([k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]))
             character.active_effects = [_ for _ in character.active_effects if _ != "Cannot Cast Spells"]
+        return character
 
 
 class Clothing(Armor):
     def __init__(self, name="Clothing", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
 
 
 class PaddedArmor(Armor):
     def __init__(self, name="Padded Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Light"
         self.stealth_disadvantage = True
         self.base_ac = 11
@@ -185,6 +200,8 @@ class PaddedArmor(Armor):
 class LeatherArmor(Armor):
     def __init__(self, name="Leather Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Light"
         self.base_ac = 11
         self.add_dex = True
@@ -195,6 +212,8 @@ class LeatherArmor(Armor):
 class StuddedLeatherArmor(Armor):
     def __init__(self, name="Studded Leather Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Light"
         self.base_ac = 11
         self.add_dex = True
@@ -205,6 +224,8 @@ class StuddedLeatherArmor(Armor):
 class HideArmor(Armor):
     def __init__(self, name="Hide Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Medium"
         self.base_ac = 12
         self.add_dex = True
@@ -216,6 +237,8 @@ class HideArmor(Armor):
 class ChainShirt(Armor):
     def __init__(self, name="Chain Shirt", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Medium"
         self.base_ac = 13
         self.add_dex = True
@@ -227,6 +250,8 @@ class ChainShirt(Armor):
 class ScaleMail(Armor):
     def __init__(self, name="Scale Mail", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Medium"
         self.base_ac = 14
         self.add_dex = True
@@ -239,6 +264,8 @@ class ScaleMail(Armor):
 class Breastplate(Armor):
     def __init__(self, name="Breastplate", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Medium"
         self.base_ac = 14
         self.add_dex = True
@@ -250,6 +277,8 @@ class Breastplate(Armor):
 class HalfPlateArmor(Armor):
     def __init__(self, name="Half Plate Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Medium"
         self.base_ac = 12
         self.add_dex = True
@@ -262,6 +291,8 @@ class HalfPlateArmor(Armor):
 class RingMail(Armor):
     def __init__(self, name="Ring Mail", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Heavy"
         self.base_ac = 14
         self.stealth_disadvantage = True
@@ -272,6 +303,8 @@ class RingMail(Armor):
 class ChainMail(Armor):
     def __init__(self, name="Chain Mail", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Heavy"
         self.base_ac = 16
         self.stealth_disadvantage = True
@@ -283,6 +316,8 @@ class ChainMail(Armor):
 class SplintArmor(Armor):
     def __init__(self, name="Splint Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Heavy"
         self.base_ac = 17
         self.stealth_disadvantage = True
@@ -294,6 +329,8 @@ class SplintArmor(Armor):
 class PlateArmor(Armor):
     def __init__(self, name="Plate Armor", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         self.category = "Heavy"
         self.base_ac = 18
         self.stealth_disadvantage = True
@@ -305,6 +342,8 @@ class PlateArmor(Armor):
 class Shield(Armor):
     def __init__(self, name="Shield", description=""):
         super().__init__()
+        self.name = name
+        self.description = description
         # Shields are just different enough that I felt it warrants a new type
         self.type = "Shield"
         self.base_ac = 2
@@ -315,4 +354,4 @@ class Shield(Armor):
         if "Shield" not in character.proficiencies["Armor"]:
             return 0
         else:
-            return 2
+            return self.base_ac

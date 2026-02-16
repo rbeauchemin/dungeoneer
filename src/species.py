@@ -232,7 +232,7 @@ class Dragonborn(Species):
         damage_amount = roll_dice(number_of_dice, 10)
         print(f"{char.name} uses Breath Weapon ({type_}) dealing {damage_amount} {self.breath_weapon_damage_type} in the area.")
         for target in targets:
-            save, value = target.roll_save("Dexterity", beat=8 + char.get_ability_bonus("Constitution") + char.proficiency_bonus)
+            save, _, _, _ = target.roll_check("Dexterity", beat=8 + char.get_ability_bonus("Constitution") + char.proficiency_bonus, check_type="Saving Throws")
             if save:
                 specific_damage = damage_amount // 2
                 print(f"{target.name} succeeded on the saving throw and takes half damage ({specific_damage} instead of {damage_amount}).")
@@ -395,17 +395,7 @@ class Halfling(Species):
         }
         self.vision = "Standard"
         self.full_rest_hours = 8
-        self.special_abilities = [
-            Spell(
-                name="Lucky",
-                casting_time="Passive",
-                range_="Self",
-                components=[],
-                duration="Permanent",
-                description="When you roll a 1 on an attack roll, ability check, or saving throw, you can reroll the die and must use the new roll.",
-                cast=lambda char, targets: print(f"{char.name} uses Lucky to reroll a 1 on a d20 roll.")
-            )
-        ]
+        self.special_traits = ["Halfling Luck"]
 
 
 class Human(Species):

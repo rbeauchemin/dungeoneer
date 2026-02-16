@@ -9,6 +9,7 @@ class Class:
         self.level = level
         self.hit_dice = 8
         self.subclass = subclass
+        self.spellcasting_ability = "None"
         self.proficiencies = {
             "Armor": [],
             "Weapons": [],
@@ -52,17 +53,20 @@ class Barbarian(Class):
         return character
 
     def apply_to_character(self, character: Character):
-        super().apply_to_character(character)
+        character = super().apply_to_character(character)
         # Handle level one additions here, and level up additions in the level up function
         self.completed_levelup_to = 1
         rages_per_level = [2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6]
         character.special_abilities += [
             Spell(
                 name="Rage",
+                casting_time="Bonus Action",
+                range_="Self",
+                components=[],
+                duration="1 Turn",
                 description="In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to bludgeoning, piercing, and slashing damage.",
                 uses_left=rages_per_level[self.level - 1],
                 cooldown="Long Rest",
-                cast_time="Bonus Action",
                 cast=lambda caster, targets: caster.active_effects.append("Rage")
             )
         ]
@@ -79,6 +83,7 @@ class Barbarian(Class):
                 "Function": self.select_starting_equipment
             }
         ])
+        return character
 
     def level_up(self, character: Character):
         self.level += 1

@@ -1,11 +1,12 @@
 from src.creatures import Character
+from src.classes import Barbarian
 
 
 def test_aasimar_abilities():
     char = Character(
         name="Ylera",
         species="Aasimar",
-        classes=[{"name": "Ranger", "level": 1}],
+        classes=[Barbarian(level=1)],
         description="Ylera is an angelic ranger, known for her sharp senses and unwavering determination in the face of danger.",
         ability_score_bonuses={
             "Strength": 12,
@@ -19,7 +20,7 @@ def test_aasimar_abilities():
     char2 = Character(
         name="Thokk",
         species="Aasimar",
-        classes=[{"name": "Fighter", "level": 3}],
+        classes=[Barbarian(level=3)],
         description="Thokk is a celestial warrior, wielding his sword with divine purpose and protecting the innocent from evil.",
         ability_score_bonuses={
             "Strength": 16,
@@ -56,7 +57,7 @@ def test_dragonborn_abilities():
     char = Character(
         name="Drake",
         species="Dragonborn",
-        classes=[{"name": "Fighter", "level": 5}],
+        classes=[Barbarian(level=5)],
         description="Drake is a fierce dragonborn warrior, known for his strength and fiery breath.",
         ability_score_bonuses={
             "Strength": 16,
@@ -71,7 +72,7 @@ def test_dragonborn_abilities():
     char2 = Character(
         name="Gobby",
         species="Goblin",
-        classes=[{"name": "Rogue", "level": 2}],
+        classes=[Barbarian(level=1)],
         description="A sneaky goblin, always looking for trouble.",
         ability_score_bonuses={
             "Strength": 8,
