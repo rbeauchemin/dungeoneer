@@ -9,12 +9,12 @@ def test_aasimar_abilities():
         classes=[Barbarian(level=1)],
         description="Ylera is an angelic ranger, known for her sharp senses and unwavering determination in the face of danger.",
         ability_score_bonuses={
-            "Strength": 12,
-            "Dexterity": 16,
-            "Constitution": 12,
-            "Intelligence": 12,
-            "Wisdom": 14,
-            "Charisma": 16
+            "Strength": 2,
+            "Dexterity": 6,
+            "Constitution": 2,
+            "Intelligence": 2,
+            "Wisdom": 4,
+            "Charisma": 6
         }
     )
     char2 = Character(
@@ -23,12 +23,12 @@ def test_aasimar_abilities():
         classes=[Barbarian(level=3)],
         description="Thokk is a celestial warrior, wielding his sword with divine purpose and protecting the innocent from evil.",
         ability_score_bonuses={
-            "Strength": 16,
-            "Dexterity": 12,
-            "Constitution": 14,
-            "Intelligence": 10,
-            "Wisdom": 12,
-            "Charisma": 14
+            "Strength": 6,
+            "Dexterity": 2,
+            "Constitution": 4,
+            "Intelligence": 0,
+            "Wisdom": 2,
+            "Charisma": 4
         }
     )
     print(f"{char2.name} is on death's door!")
@@ -60,14 +60,14 @@ def test_dragonborn_abilities():
         classes=[Barbarian(level=5)],
         description="Drake is a fierce dragonborn warrior, known for his strength and fiery breath.",
         ability_score_bonuses={
-            "Strength": 16,
-            "Dexterity": 12,
-            "Constitution": 14,
-            "Intelligence": 10,
-            "Wisdom": 12,
-            "Charisma": 14
+            "Strength": 6,
+            "Dexterity": 2,
+            "Constitution": 4,
+            "Intelligence": 0,
+            "Wisdom": 2,
+            "Charisma": 4
         },
-        ancestry="Red"
+        dragonborn_ancestry="Red"
     )
     char2 = Character(
         name="Gobby",
@@ -75,12 +75,12 @@ def test_dragonborn_abilities():
         classes=[Barbarian(level=1)],
         description="A sneaky goblin, always looking for trouble.",
         ability_score_bonuses={
-            "Strength": 8,
-            "Dexterity": 14,
-            "Constitution": 10,
-            "Intelligence": 10,
-            "Wisdom": 8,
-            "Charisma": 8
+            "Strength": -2,
+            "Dexterity": 4,
+            "Constitution": 0,
+            "Intelligence": 0,
+            "Wisdom": -2,
+            "Charisma": -2
         }
     )
     char2.current_hp = 20

@@ -46,7 +46,7 @@ class Weapon(Item):
         self.type = "Weapon"
         self.name = name
         self.description = description
-        # Improvised, Simple, Martial
+        # Unarmed, Improvised, Simple, Martial
         self.category = "Improvised"
         self.damage = "1d1"
         self.damage_type = "Bludgeoning"
@@ -56,6 +56,32 @@ class Weapon(Item):
         self.properties = []
         # Mastery can be Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex
         self.mastery = None
+
+    def on_equip(self, character: Character):
+        return self
+
+    def on_unequip(self, character: Character):
+        return self
+
+
+class Unarmed(Weapon):
+    def __init__(self, name="Unarmed Strike", description=""):
+        super().__init__()
+        self.name = name
+        self.description = description
+        self.category = "Unarmed"
+        self.damage = "1d1"
+
+    def on_equip(self, character: Character):
+        super().on_equip(character)
+        if "Tavern Brawler" in [_.name for _ in character.feats]:
+            self.damage = "1d4"
+        return self
+
+    def on_unequip(self, character: Character):
+        super().on_unequip(character)
+        self.damage = "1d1"
+        return self
 
 
 class Club(Weapon):
@@ -164,7 +190,7 @@ class Armor(Item):
         if self.category is not None and self.category not in character.proficiencies["Armor"]:
             character.disadvantages["Skills"] += [k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]
             character.active_effects += ["Cannot Cast Spells"]
-        return character
+        return self
 
     def on_unequip(self, character: Character):
         if self.stealth_disadvantage:
@@ -174,7 +200,7 @@ class Armor(Item):
         if self.category is not None and self.category not in character.proficiencies["Armor"]:
             character.disadvantages["Skills"] = list(set(character.disadvantages["Skills"]) - set([k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]))
             character.active_effects = [_ for _ in character.active_effects if _ != "Cannot Cast Spells"]
-        return character
+        return self
 
 
 class Clothing(Armor):

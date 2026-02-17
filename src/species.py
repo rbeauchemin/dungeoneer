@@ -151,7 +151,7 @@ class Aasimar(Species):
 
 
 class Dragonborn(Species):
-    def __init__(self, ancestry: Literal["Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green", "Red", "Silver", "White"]):
+    def __init__(self, dragonborn_ancestry: Literal["Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green", "Red", "Silver", "White"]):
         super().__init__()
         self.todo = ["Select your draconic ancestry, which determines the damage type of your breath weapon and your resistance to that damage type."]
         self.description = "Dragonborn are proud, honorable warriors with draconic ancestry. They possess a strong sense of duty and a desire to prove themselves through acts of valor. Dragonborn are known for their strength, resilience, and their ability to breathe elemental energy. They often have a strong connection to their clan and value loyalty and camaraderie. Dragonborn typically have scales that reflect their draconic heritage, with colors ranging from metallic hues to vibrant shades associated with different types of dragons."
@@ -176,12 +176,12 @@ class Dragonborn(Species):
             "Silver": "Cold",
             "White": "Cold"
         }
-        if ancestry in ancestries.keys():
-            self.ancestry = ancestry
-            self.breath_weapon_damage_type = ancestries[ancestry]
+        if dragonborn_ancestry in ancestries.keys():
+            self.dragonborn_ancestry = dragonborn_ancestry
+            self.breath_weapon_damage_type = ancestries[dragonborn_ancestry]
             self.resistances = [self.breath_weapon_damage_type]
         else:
-            print(f"Invalid ancestry provided. Please select a valid draconic ancestry from {list(ancestries.keys())}.")
+            raise Exception(f"Invalid ancestry provided. Please select a valid draconic ancestry from {list(ancestries.keys())}.")
         self.special_abilities = [
             Spell(
                 name="Breath Weapon: Cone",

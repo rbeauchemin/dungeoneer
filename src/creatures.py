@@ -29,7 +29,7 @@ class Character:
         else:
             self.proficiencies = {
                 "Armor": [],
-                "Weapons": [],
+                "Weapons": ["Unarmed"],
                 "Tools": [],
                 "Saving Throws": [],
                 "Skills": [],
@@ -58,7 +58,7 @@ class Character:
         # SET ALL SPECIES ATTRIBUTES
         if isinstance(species, str):
             try:
-                self.species = getattr(importlib.import_module("src.species"), species)()
+                self.species = getattr(importlib.import_module("src.species"), species)(**kwargs)
             except AttributeError:
                 raise Exception(f"Species {species} could not be found")
         else:
@@ -239,17 +239,15 @@ class Character:
         return self.get_ability_bonus(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
 
     def attack(self, target, weapon_name=None, action_type="Action"):
-        weapons = []
+        from src.items import Unarmed
+        weapons = [Unarmed().on_equip(self)]
         weapon = None
         for item in self.equipped_items:
             if item.type == "Weapon":
                 weapons.append(item)
-        if len(weapons) == 0:
-            from src.items import Weapon
-            weapon = Weapon(name="Unarmed")
-            weapon.damage = "1d1"
-        elif len(weapons) == 1 and weapon_name is None:
-            weapon = weapons[0]
+        # Take the only equipped weapon or unarmed as default
+        if len(weapons) < 3 and weapon_name is None:
+            weapon = weapons[-1]
         else:
             for item in weapons:
                 if item.name == weapon_name:
@@ -276,6 +274,7 @@ class Character:
             pass
         if success:
             total = roll_dice(dice_split[0], dice_split[1]) + ability_bonus
+            print(f"The total damage done is {total}")
             if weapon.damage_type in target.resistances:
                 print("The attack doesn't seem very effective")
                 total = total // 2
