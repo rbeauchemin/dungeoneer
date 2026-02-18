@@ -139,7 +139,7 @@ class Character:
             try:
                 item_object = getattr(importlib.import_module("src.items"), item)()
             except AttributeError:
-                print("Could not find the requested item")
+                raise Exception("Could not find the requested item")
         else:
             item_object = item
         if purchasing:
