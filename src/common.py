@@ -1,4 +1,9 @@
+import re
 from random import choice
+
+
+def clean_text(text: str):
+    return re.sub(r'[^a-zA-Z0-9]', '', text)
 
 
 def roll_dice(num_dice=1, dice_sides=6):
@@ -58,3 +63,8 @@ dnd_skills = {
     "Stealth": "Dexterity",
     "Survival": "Wisdom"
 }
+
+damage_types = [
+    "Acid", "Bludgeoning", "Cold", "Fire", "Force", "Lightning", "Necrotic",
+    "Piercing", "Poison", "Psychic", "Radiant", "Slashing", "Thunder"
+]

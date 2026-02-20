@@ -25,26 +25,17 @@ class Armor(Item):
             ac += min([character.get_ability_bonus("Dexterity"), self.dex_add_max])
         return ac
 
-    # TODO: These should add and remove an "active effect" instead, so that it doesn't affect other active effects
-    # TODO: active effects should be looked at when measuring ability, skill, speed, etc checks.
     def on_equip(self, character: Character):
         if self.stealth_disadvantage:
-            character.disadvantages["Skills"] += ["Stealth"]
+            character.add_condition("ClunkyArmor")
         if character.ability_scores["Strength"] < self.strength_required:
-            character.speed -= 10
+            character.add_condition("ArmorTooHeavy")
         if self.category is not None and self.category not in character.proficiencies["Armor"]:
-            character.disadvantages["Skills"] += [k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]
-            character.active_effects += ["Cannot Cast Spells"]
+            character.add_condition("ProficiencyGappedArmor")
         return self
 
     def on_unequip(self, character: Character):
-        if self.stealth_disadvantage:
-            character.disadvantages["Skills"] = [skill for skill in character.disadvantages["Skills"] if skill != "Stealth"]
-        if character.ability_scores["Strength"] < self.strength_required:
-            character.speed += 10
-        if self.category is not None and self.category not in character.proficiencies["Armor"]:
-            character.disadvantages["Skills"] = list(set(character.disadvantages["Skills"]) - set([k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]))
-            character.active_effects = [_ for _ in character.active_effects if _ != "Cannot Cast Spells"]
+        character.remove_condition(["ClunkyArmor", "ArmorTooHeavy", "ProficiencyGappedArmor"])
         return self
 
 

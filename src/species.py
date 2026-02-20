@@ -10,10 +10,12 @@ class Species:
         self.special_abilities = {}
         self.special_traits = []
         self.resistances = []
+        self.immunities = []
         self.advantages = {}
         self.vision = "Standard"
         self.todo = []
         self.size = "Medium"
+        self.weight = 150
         self.speed = 30
         self.swimming_speed = 15
         self.flying_speed = 0
@@ -29,6 +31,7 @@ class Goblin(Species):
         self.description = "Goblins are small, green-skinned humanoids known for their cunning and mischievous nature. They are often found in tribes or clans, living in caves or forests. Goblins are quick and agile, making them adept at ambushes and hit-and-run tactics. They have a knack for scavenging and repurposing items they find, often creating makeshift weapons and armor. Despite their small size, goblins can be quite dangerous when encountered in groups. They are known for their sharp teeth and pointed ears, as well as their distinctive, high-pitched voices."
         self.creature_type = "Humanoid"
         self.size = "Small"
+        self.weight = 40
         self.species = "Goblin"
         self.resistances = []
         self.vision = "Darkvision"
@@ -53,8 +56,9 @@ class Aasimar(Species):
         self.creature_type = "Humanoid"
         self.target = None
         self.todo = []
-        if size in ["Small", "Medium"]:
-            self.size = size
+        self.size = size
+        if self.size == "Small":
+            self.weight = 60
         else:
             self.size = "Medium"
         self.spells = [Light(ability="Charisma", level=0)]
@@ -157,6 +161,7 @@ class Dragonborn(Species):
         self.description = "Dragonborn are proud, honorable warriors with draconic ancestry. They possess a strong sense of duty and a desire to prove themselves through acts of valor. Dragonborn are known for their strength, resilience, and their ability to breathe elemental energy. They often have a strong connection to their clan and value loyalty and camaraderie. Dragonborn typically have scales that reflect their draconic heritage, with colors ranging from metallic hues to vibrant shades associated with different types of dragons."
         self.creature_type = "Humanoid"
         self.size = "Medium"
+        self.weight = 230
         self.speed = 30
         self.species = "Dragonborn"
         self.resistances = []
@@ -295,6 +300,7 @@ class Elf(Species):
         self.description = "Elves are graceful and agile humanoids known for their keen senses, longevity, and deep connection to nature and magic. They typically stand between 5 and 6 feet tall, with slender builds and pointed ears. Elves have a natural affinity for the arcane arts and are often skilled spellcasters. They are known for their exceptional dexterity and keen eyesight, making them adept archers and scouts. Elves value beauty, art, and knowledge, often living in harmony with the natural world. High elves are known for their magical prowess, wood elves for their stealth and connection to the forest, and dark elves (drow) for their subterranean societies and unique abilities."
         self.creature_type = "Humanoid"
         self.size = "Medium"
+        self.weight = 115
         if lineage == "Wood":
             self.speed = 35
         else:
@@ -338,6 +344,7 @@ class Gnome(Species):
         self.description = "Gnomes are small, intelligent humanoids known for their curiosity, inventiveness, and affinity for magic. They typically stand between 3 and 4 feet tall and have a keen intellect that drives them to explore the world around them. Gnomes are often skilled tinkerers and inventors, creating intricate devices and gadgets. They have a natural talent for illusion magic and are known for their playful and mischievous nature. Gnomes value knowledge, creativity, and community, often forming close-knit societies where they can share their discoveries and inventions."
         self.creature_type = "Humanoid"
         self.size = "Small"
+        self.weight = 40
         self.speed = 25
         self.species = "Gnome"
         self.resistances = []
@@ -362,6 +369,7 @@ class Goliath(Species):
         self.description = "Goliaths are towering humanoids known for their immense strength, endurance, and competitive nature. They typically stand between 7 and 8 feet tall and have muscular builds covered in stone-like skin with distinctive markings. Goliaths hail from mountainous regions, where they have adapted to harsh environments and rugged terrain. They are natural athletes, excelling in physical challenges and feats of strength. Goliaths value self-improvement, honor, and camaraderie, often engaging in friendly competitions to test their abilities. Despite their imposing appearance, goliaths are known for their sense of humor and strong community bonds."
         self.creature_type = "Humanoid"
         self.size = "Medium"
+        self.weight = 270
         self.speed = 30
         self.species = "Goliath"
         self.resistances = []
@@ -386,6 +394,7 @@ class Halfling(Species):
         self.description = "Halflings are small, nimble humanoids known for their cheerful disposition, resourcefulness, and strong sense of community. They typically stand around 3 feet tall and have a slender build. Halflings are known for their luck and ability to avoid danger, often finding themselves in fortunate situations. They value comfort, friendship, and simple pleasures, often living in close-knit villages or communities. Halflings are skilled at stealth and are adept at moving quietly through their surroundings. They have a natural curiosity and love for adventure, often embarking on journeys to explore the wider world."
         self.creature_type = "Humanoid"
         self.size = "Small"
+        self.weight = 40
         self.speed = 25
         self.subrace = subrace
         self.species = "Halfling"
@@ -417,6 +426,7 @@ class Orc(Species):
         self.description = "Orcs are brutish and aggressive humanoids known for their strength, ferocity, and tribal societies. They typically stand between 6 and 7 feet tall and have muscular builds with greenish or grayish skin tones. Orcs are often depicted as warriors and raiders, valuing strength and combat prowess above all else. They live in harsh environments, such as wastelands or mountains, where they have adapted to survive through sheer toughness and resilience. Orcs have a strong sense of community within their tribes, often engaging in rituals and traditions that celebrate their martial culture."
         self.creature_type = "Humanoid"
         self.size = "Medium"
+        self.weight = 220
         self.speed = 30
         self.species = "Orc"
         self.resistances = []
@@ -444,6 +454,7 @@ class Tiefling(Species):
         self.description = "Tieflings are humanoids with infernal heritage, often characterized by their distinctive horns, tails, and other fiendish features. They typically stand between 5 and 6 feet tall and have a variety of skin tones, ranging from deep reds and purples to more human-like shades. Tieflings are known for their cunning, charisma, and resilience, often navigating the world with a mix of charm and suspicion due to their fiendish ancestry. They possess innate magical abilities, often related to fire and darkness, which they can use to their advantage. Tieflings value individuality and self-reliance, frequently forging their own paths in life despite the prejudices they may face from others."
         self.creature_type = "Humanoid"
         self.size = "Medium"
+        self.weight = 140
         self.speed = 30
         self.species = "Tiefling"
         self.resistances = ["Fire"]

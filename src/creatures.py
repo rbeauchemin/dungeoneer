@@ -1,5 +1,16 @@
 import importlib
-from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals, dnd_skills
+from typing import Optional
+from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals, dnd_skills, clean_text
+
+
+default_params = {
+    "Saving Throws": [],
+    "Skills": [],
+    "Abilities": [],
+    "Attack": 0,
+    "ToBeAttacked": 0,
+    "Initiative": 0
+}
 
 
 class Character:
@@ -9,52 +20,34 @@ class Character:
         self.name = name
         self.description = description
         self.gold = 0
+        self.d20_modifier = 0
         self.active_effects = []
         self.inventory = []
         self.inventory += equipment
+        self.death_saves = {
+            "Failed": 0,
+            "Succeeded": 0
+        }
         self.equipped_items = []
-        if "ability_scores" in kwargs:
-            self.ability_scores = kwargs['ability_scores']
-        else:
-            self.ability_scores = {
-                "Strength": 10,
-                "Dexterity": 10,
-                "Constitution": 10,
-                "Intelligence": 10,
-                "Wisdom": 10,
-                "Charisma": 10
-            }
-        if "proficiencies" in kwargs:
-            self.proficiencies = kwargs['proficiencies']
-        else:
-            self.proficiencies = {
-                "Armor": [],
-                "Weapons": ["Unarmed"],
-                "Tools": [],
-                "Saving Throws": [],
-                "Skills": [],
-                "Special": []
-            }
-        if "advantages" in kwargs:
-            self.advantages = kwargs['advantages']
-        else:
-            self.advantages = {
-                "Saving Throws": [],
-                "Skills": [],
-                "Abilities": [],
-                "Attack": 0,
-                "ToBeAttacked": 0
-            }
-        if "disadvantages" in kwargs:
-            self.disadvantages = kwargs['disadvantages']
-        else:
-            self.disadvantages = {
-                "Saving Throws": [],
-                "Skills": [],
-                "Abilities": [],
-                "Attack": 0,
-                "ToBeAttacked": 0
-            }
+        self.ability_scores = kwargs['ability_scores'] if "ability_scores" in kwargs else {
+            "Strength": 10,
+            "Dexterity": 10,
+            "Constitution": 10,
+            "Intelligence": 10,
+            "Wisdom": 10,
+            "Charisma": 10
+        }
+        self.proficiencies = kwargs['proficiencies'] if "proficiencies" in kwargs else {
+            "Armor": [],
+            "Weapons": ["Unarmed"],
+            "Tools": [],
+            "Saving Throws": [],
+            "Skills": [],
+            "Special": []
+        }
+        self.advantages = kwargs['advantages'] if "advantages" in kwargs else default_params
+        self.disadvantages = kwargs['disadvantages'] if "disadvantages" in kwargs else default_params
+        self.auto_fail = kwargs['auto_fail'] if 'auto_fail' in kwargs else default_params
         # SET ALL SPECIES ATTRIBUTES
         if isinstance(species, str):
             try:
@@ -66,12 +59,14 @@ class Character:
         self.todo += self.species.todo
         self.description += " " if self.description else "" + self.species.description
         self.size = self.species.size
+        self.weight = self.species.weight
         self.speed = self.species.speed
         self.swimming_speed = self.species.swimming_speed
         self.flying_speed = self.species.flying_speed
         self.spells = self.species.spells
         self.spells += spells
         self.resistances = self.species.resistances
+        self.immunities = self.species.immunities
         self.vision = self.species.vision
         self.full_rest_hours = self.species.full_rest_hours
         self.special_abilities = self.species.special_abilities
@@ -134,10 +129,43 @@ class Character:
         self.species.level = self.level
         # TODO: Add class features, spells, and equipment based on new level and which class is being leveled up
 
-    def add_item(self, item, purchasing=False):
-        if isinstance(item, str):
+    def add_condition(self, condition):
+        if isinstance(condition, list):
+            for c in condition:
+                self.add_condition(c)
+            return
+        elif isinstance(condition, str):
             try:
-                item_object = getattr(importlib.import_module("src.items"), item)()
+                condition = getattr(importlib.import_module("src.conditions"), condition)()
+            except AttributeError:
+                raise Exception("Could not find the requested item")
+        try:
+            condition.apply(self)
+        except Exception:
+            condition().apply(self)
+
+    def remove_condition(self, condition):
+        if isinstance(condition, list):
+            for c in condition:
+                self.remove_condition(c)
+            return
+        elif isinstance(condition, str):
+            for active_effect in self.active_effects:
+                if clean_text(condition).lower() == clean_text(active_effect.name).lower():
+                    active_effect.remove(self)
+        else:
+            for active_effect in self.active_effects:
+                if clean_text(condition.name).lower() == clean_text(active_effect.name).lower():
+                    active_effect.remove(self)
+
+    def add_item(self, item, purchasing=False):
+        if isinstance(item, list):
+            for i in item:
+                self.add_item(i)
+            return
+        elif isinstance(item, str):
+            try:
+                item_object = getattr(importlib.import_module("src.items"), clean_text(item))()
             except AttributeError:
                 raise Exception("Could not find the requested item")
         else:
@@ -148,9 +176,13 @@ class Character:
             self.inventory.append(item_object)
 
     def remove_item(self, item, selling=False):
-        if isinstance(item, str):
+        if isinstance(item, list):
+            for i in item:
+                self.remove_item(i)
+            return
+        elif isinstance(item, str):
             try:
-                item_object = getattr(importlib.import_module("src.items"), item)()
+                item_object = getattr(importlib.import_module("src.items"), clean_text(item))()
             except AttributeError:
                 print("Could not find the requested item")
         else:
@@ -161,12 +193,12 @@ class Character:
             self.inventory.remove(item_object)
 
     def equip_item(self, item_name: str):
-        item_object = None
-        for item in self.inventory:
-            if item_name == item.name:
-                item_object = item
+        item = None
+        for i in self.inventory:
+            if clean_text(item_name).lower() == clean_text(i.name).lower():
+                item = i
                 break
-        if item_object is None:
+        if item is None:
             print(f"{self.name} does not have {item_name} in their inventory.")
             return
         hands_left = 2
@@ -178,14 +210,14 @@ class Character:
                     hands_left -= 1
             if equipped_item.type == "Shield":
                 hands_left -= 1
-        if item_object.type == "Weapon":
-            if "Two-Handed" in item_object.properties and hands_left < 2:
-                print(f"Not enough hands to equip {item_object.name}. Unequip some items first.")
+        if item.type == "Weapon":
+            if "Two-Handed" in item.properties and hands_left < 2:
+                print(f"Not enough hands to equip {item.name}. Unequip some items first.")
                 return
             elif hands_left < 1:
-                print(f"Not enough hands to equip {item_object.name}. Unequip some items first.")
+                print(f"Not enough hands to equip {item.name}. Unequip some items first.")
                 return
-        elif item_object.type == "Shield":
+        elif item.type == "Shield":
             # can't have two shields
             for equipped_item in self.equipped_items:
                 if equipped_item.type == "Shield":
@@ -195,21 +227,25 @@ class Character:
             for equipped_item in self.equipped_items:
                 if equipped_item.type == "Armor":
                     self.unequip_item(equipped_item.name)
+        if hasattr(item, "on_equip"):
+            item.on_equip(self)
         self.equipped_items.append(item)
         self.inventory.remove(item)
 
     def unequip_item(self, item_name):
-        item_object = None
-        for item in self.equipped_items:
-            if item_name == item.name:
-                item_object = item
+        item = None
+        for i in self.equipped_items:
+            if clean_text(item_name).lower() == clean_text(i.name).lower():
+                item = i
                 break
-        if item_object is None:
+        if item is None:
             print(f"{self.name} does not have {item_name} equipped.")
             return
         self.equipped_items.remove(item)
         self.inventory.append(item)
-        print(f"{self.name} has unequipped {item_object.name}.")
+        if hasattr(item, "on_unequip"):
+            item.on_unequip(self)
+        print(f"{self.name} has unequipped {item.name}.")
 
     def get_ability_bonus(self, ability):
         return (self.ability_scores[ability] - 10) // 2
@@ -238,7 +274,17 @@ class Character:
     def get_skill_bonus(self, skill):
         return self.get_ability_bonus(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
 
-    def attack(self, target, weapon_name=None, action_type="Action"):
+    def attack(self, target, weapon_name: Optional[str] = None, action_type: str = "Action", lethal: bool = True):
+        advantage_counter = 0
+        charmed_by = [_.by for _ in self.active_effects if _.name == "Charmed"]
+        for charmer in charmed_by:
+            if charmer == target:
+                print(f"{target} cannot be targeted due to charm.")
+                return
+        grappled_by = [_.by for _ in self.active_effects if _.name == "Grappled"]
+        if len(grappled_by) > 0 and target not in grappled_by:
+            print("Getting disadvantage for not attacking grappler")
+            advantage_counter -= 1
         from src.items import Unarmed
         weapons = [Unarmed().on_equip(self)]
         weapon = None
@@ -259,12 +305,17 @@ class Character:
             ability_bonus = max([self.get_ability_bonus("Dexterity"), ability_bonus])
         proficiency_bonus = self.proficiency_bonus if weapon.category in self.proficiencies["Weapons"] else 0
         # give extra bonus to attack advantage if target marked with advantage to be attacked
-        advantage_counter = 0
         advantage_counter += target.advantages["ToBeAttacked"]
         advantage_counter -= target.disadvantages["ToBeAttacked"]
         print(f"{self.name} attacks {target.name} with {weapon.name}.")
         success, total, crit_fail, crit_success = self.roll_check(None, beat=target.ac(), bonus=ability_bonus + proficiency_bonus, check_type="Attack", advantage_counter=advantage_counter)
         dice_split = [int(_) for _ in weapon.damage.split("d")]
+        if "Paralyzed" in [_.name for _ in target.active_effects] and success:
+            print("It's a critical hit due to Paralysis.")
+            crit_success = True
+        if "Unconscious" in [_.name for _ in target.active_effects] and success:
+            print("It's a critical hit due to Unconsciousness.")
+            crit_success = True
         # HOUSE RULE: Critical success - double dice. Could also double the total below.
         if crit_success:
             dice_split[0] = dice_split[0] * 2
@@ -278,11 +329,25 @@ class Character:
             if weapon.damage_type in target.resistances:
                 print("The attack doesn't seem very effective")
                 total = total // 2
+            elif weapon.damage_type in target.immunities:
+                print("The attack did nothing at all!")
+                total = 0
             target.current_hp -= total
         else:
             print("The attack missed!")
+        if target.current_hp < 0 and lethal:
+            target.current_hp = 0
+            target.add_condition("Dead")
+        elif target.current_hp < 0 and not lethal:
+            target.current_hp = 1
+            target.add_condition("Unconscious")
 
     def cast_spell(self, spell, targets=[]):
+        charmed_by = [_.by for _ in self.active_effects if _.name == "Charmed"]
+        for charmer in charmed_by:
+            if charmer in targets:
+                print(f"{charmed_by.name} cannot be targeted due to charm.")
+                return
         for s in self.spells:
             if s.name == spell:
                 if s.uses_left is None or s.uses_left > 0:
@@ -295,6 +360,11 @@ class Character:
         print(f"{self.name} does not know the spell {spell}.")
 
     def use_special_ability(self, ability, targets=[]):
+        charmed_by = [_.by for _ in self.active_effects if _.name == "Charmed"]
+        for charmer in charmed_by:
+            if charmer in targets:
+                print(f"{charmed_by.name} cannot be targeted due to charm.")
+                return
         for a in self.special_abilities:
             if a.name == ability:
                 if a.uses_left is None or a.uses_left > 0:
@@ -306,13 +376,28 @@ class Character:
                 return
         print(f"{self.name} does not know the special ability {ability}.")
 
+    def grapple(self, target):
+        from src.conditions import Grappled
+        Grappled(by=self).apply(target)
+
     def roll_check(self, ability, beat=None, bonus=0, check_type=None, advantage_counter=0, critical_threshold: int = 20, failure_threshold: int = 1, tie_succeeds: bool = True):
         # check type can be ["Abilities", "Saving Throws", "Skills", "Attack", "Initiative"]
+        if isinstance(self.auto_fail[check_type], list):
+            for f in self.auto_fail[check_type]:
+                if f == ability:
+                    auto_fail = True
+        else:
+            auto_fail = self.auto_fail[check_type]
+        if auto_fail:
+            return False, 0, False, False
         roll = roll_dice(1, 20)
+        bonus += self.d20_modifier
         if check_type in ["Abilities", "Saving Throws"]:
-            bonus = self.get_ability_bonus(ability)
-        if check_type in ["Skills"]:
-            bonus = self.get_skill_bonus(ability)
+            bonus += self.get_ability_bonus(ability)
+        elif check_type == "Skills":
+            bonus += self.get_skill_bonus(ability)
+        elif check_type == "Initiative":
+            bonus += self.get_ability_bonus("Dexterity")
         if isinstance(self.advantages[check_type], list):
             for adv in self.advantages[check_type]:
                 if adv == ability:
@@ -333,13 +418,20 @@ class Character:
             bonus += self.proficiency_bonus
         total = roll + bonus
         print(f"{self.name} rolls {roll} + {bonus} = {total}")
-        success, total, crit_fail, crit_success = handle_roll_criticals(roll, total, beat, critical_threshold=critical_threshold, failure_threshold=failure_threshold, halfling_luck="Halfling Luck" in self.special_traits, tie_succeeds=tie_succeeds)
+        success, total, crit_fail, crit_success = handle_roll_criticals(
+            roll, total, beat, critical_threshold=critical_threshold,
+            failure_threshold=failure_threshold,
+            halfling_luck="Halfling Luck" in self.special_traits,
+            tie_succeeds=tie_succeeds
+        )
         return success, total, crit_fail, crit_success
 
     def rest(self, long=False):
         self.species.rest(long=long)
         if long:
+            from src.conditions import Exhaustion
             self.current_hp = self.max_hp
+            self.remove_condition("Exhaustion")
         else:
             # TODO: Implement short rest logic with hit die
             pass
