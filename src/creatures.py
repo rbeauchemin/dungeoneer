@@ -158,24 +158,30 @@ class Character:
                 if clean_text(condition.name).lower() == clean_text(active_effect.name).lower():
                     active_effect.remove(self)
 
-    def add_item(self, item, purchasing=False):
+    def add_item(self, item, purchasing=False, quantity: int = 1):
         if isinstance(item, list):
             for i in item:
                 self.add_item(i)
             return
         elif isinstance(item, str):
             try:
-                item_object = getattr(importlib.import_module("src.items"), clean_text(item))()
+                item_object = getattr(importlib.import_module("src.items"), clean_text(item))(quantity=quantity)
             except AttributeError:
                 raise Exception("Could not find the requested item")
         else:
             item_object = item
         if purchasing:
-            item_object.purchase(self)
+            item_object.purchase(self, quantity=quantity)
         else:
+            # check existing items
+            for i in self.inventory:
+                if item_object.name == i.name:
+                    i.quantity += quantity
+                    return
+            # if none matched, add a new one
             self.inventory.append(item_object)
 
-    def remove_item(self, item, selling=False):
+    def remove_item(self, item, selling=False, quantity: int = 1):
         if isinstance(item, list):
             for i in item:
                 self.remove_item(i)
@@ -188,9 +194,14 @@ class Character:
         else:
             item_object = item
         if selling:
-            item_object.sell(self)
+            item_object.sell(self, quantity=quantity)
         else:
-            self.inventory.remove(item_object)
+            for i in self.inventory:
+                if i.name == item_object.name:
+                    if quantity < i.quantity:
+                        i.quantity -= quantity
+                    else:
+                        self.inventory.remove(item)
 
     def equip_item(self, item_name: str):
         item = None

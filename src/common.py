@@ -43,6 +43,50 @@ def roll_dice_discard_lowest(dice_sides, num_dice=4):
     return sum(rolls)
 
 
+artisans_tools = [
+    "Alchemist's Supplies",
+    "Brewer's Supplies",
+    "Calligrapher's Supplies",
+    "Carpenter's Tools",
+    "Cartographer's Tools",
+    "Cobbler's Tools",
+    "Cook's Utensils",
+    "Glassblower's Tools",
+    "Jeweler's Tools",
+    "Leatherworker's Tools",
+    "Mason's Tools",
+    "Painter's Supplies",
+    "Potter's Tools",
+    "Smith's Tools",
+    "Tinker's Tools",
+    "Weaver's Tools",
+    "Woodcarver's Tools"
+]
+
+other_tools = [
+    "Disguise Kit",
+    "Forgery Kit",
+    "Dice",
+    "Dragonchess",
+    "Playing Cards",
+    "Three-Dragon Ante",
+    "Herbalism Kit",
+    "Bagpipes",
+    "Drum",
+    "Dulcimer",
+    "Flute",
+    "Horn",
+    "Lute",
+    "Lyre",
+    "Pan Flute",
+    "Shawm",
+    "Viol",
+    "Navigator's Tools",
+    "Poisoner's Kit",
+    "Thieves' Tools"
+]
+
+
 dnd_skills = {
     "Acrobatics": "Dexterity",
     "Animal Handling": "Wisdom",

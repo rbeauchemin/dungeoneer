@@ -4,8 +4,8 @@ from src.items.items import Item
 
 
 class Armor(Item):
-    def __init__(self, name="Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.type = "Armor"
         self.name = name
         self.description = description
@@ -40,15 +40,15 @@ class Armor(Item):
 
 
 class Clothing(Armor):
-    def __init__(self, name="Clothing", description=""):
-        super().__init__()
+    def __init__(self, name="Clothing", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
 
 
 class PaddedArmor(Armor):
-    def __init__(self, name="Padded Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Padded Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Light"
@@ -60,8 +60,8 @@ class PaddedArmor(Armor):
 
 
 class LeatherArmor(Armor):
-    def __init__(self, name="Leather Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Leather Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Light"
@@ -72,8 +72,8 @@ class LeatherArmor(Armor):
 
 
 class StuddedLeatherArmor(Armor):
-    def __init__(self, name="Studded Leather Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Studded Leather Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Light"
@@ -84,8 +84,8 @@ class StuddedLeatherArmor(Armor):
 
 
 class HideArmor(Armor):
-    def __init__(self, name="Hide Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Hide Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Medium"
@@ -97,8 +97,8 @@ class HideArmor(Armor):
 
 
 class ChainShirt(Armor):
-    def __init__(self, name="Chain Shirt", description=""):
-        super().__init__()
+    def __init__(self, name="Chain Shirt", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Medium"
@@ -110,8 +110,8 @@ class ChainShirt(Armor):
 
 
 class ScaleMail(Armor):
-    def __init__(self, name="Scale Mail", description=""):
-        super().__init__()
+    def __init__(self, name="Scale Mail", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Medium"
@@ -124,8 +124,8 @@ class ScaleMail(Armor):
 
 
 class Breastplate(Armor):
-    def __init__(self, name="Breastplate", description=""):
-        super().__init__()
+    def __init__(self, name="Breastplate", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Medium"
@@ -137,8 +137,8 @@ class Breastplate(Armor):
 
 
 class HalfPlateArmor(Armor):
-    def __init__(self, name="Half Plate Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Half Plate Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Medium"
@@ -151,8 +151,8 @@ class HalfPlateArmor(Armor):
 
 
 class RingMail(Armor):
-    def __init__(self, name="Ring Mail", description=""):
-        super().__init__()
+    def __init__(self, name="Ring Mail", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Heavy"
@@ -163,8 +163,8 @@ class RingMail(Armor):
 
 
 class ChainMail(Armor):
-    def __init__(self, name="Chain Mail", description=""):
-        super().__init__()
+    def __init__(self, name="Chain Mail", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Heavy"
@@ -176,8 +176,8 @@ class ChainMail(Armor):
 
 
 class SplintArmor(Armor):
-    def __init__(self, name="Splint Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Splint Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Heavy"
@@ -189,8 +189,8 @@ class SplintArmor(Armor):
 
 
 class PlateArmor(Armor):
-    def __init__(self, name="Plate Armor", description=""):
-        super().__init__()
+    def __init__(self, name="Plate Armor", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Heavy"
@@ -202,8 +202,8 @@ class PlateArmor(Armor):
 
 
 class Shield(Armor):
-    def __init__(self, name="Shield", description=""):
-        super().__init__()
+    def __init__(self, name="Shield", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         # Shields are just different enough that I felt it warrants a new type

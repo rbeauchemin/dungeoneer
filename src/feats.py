@@ -1,5 +1,6 @@
 from typing import Literal
 from creatures import Character
+from common import artisans_tools, other_tools, dnd_skills
 
 
 class Feat:
@@ -8,12 +9,10 @@ class Feat:
         self.name = ""
         self.description = ""
         self.prerequisites = {}
+        self.repeatable = False
 
     def apply_to_character(self, character: Character):
         return character
-
-
-# TODO: At least complete the origin feats
 
 
 class Alert(Feat):
@@ -23,6 +22,7 @@ class Alert(Feat):
         self.description = "Always on the lookout for danger, you gain the following benefits: You gain a +5 bonus to initiative. You can't be surprised while you are conscious. Other creatures don't gain advantage on attack rolls against you as a result of being unseen by you."
 
     def apply_to_character(self, character: Character):
+        # TODO: Add handling for both of these when combat code is created
         character.proficiencies["Special"] += ["Initiative"]
         character.special_traits += ["Initiative Swap"]
         return character
@@ -36,25 +36,7 @@ class Crafter(Feat):
         if tool_type is None:
             self.todo = [{
                 "Text": "Choose three artisan's tools to gain proficiency with.",
-                "Options": [
-                    "Alchemist's Supplies",
-                    "Brewer's Supplies",
-                    "Calligrapher's Supplies",
-                    "Carpenter's Tools",
-                    "Cartographer's Tools",
-                    "Cobbler's Tools",
-                    "Cook's Utensils",
-                    "Glassblower's Tools",
-                    "Jeweler's Tools",
-                    "Leatherworker's Tools",
-                    "Mason's Tools",
-                    "Painter's Supplies",
-                    "Potter's Tools",
-                    "Smith's Tools",
-                    "Tinker's Tools",
-                    "Weaver's Tools",
-                    "Woodcarver's Tools"
-                ],
+                "Options": artisans_tools,
                 "Function": self.set_tool_proficiency,
                 "Choices": 3
             }]
@@ -65,8 +47,9 @@ class Crafter(Feat):
         return character
 
     def apply_to_character(self, character: Character):
-        character.special_traits += ["Discount", "Fast Crafting"]
+        # NOTE: Discount is handled in the buying part of the code
         # TODO: Add handling for crafting items during long rest and discount on nonmagical items
+        character.special_traits += ["Discount", "Fast Crafting"]
         return character
 
 
@@ -77,7 +60,20 @@ class Healer(Feat):
         self.description = "You have always cared for others, whether after battle or after illness befell your community, and gain bonuses to healing"
 
     def apply_to_character(self, character: Character):
+        # TODO: Handle both of these
         character.special_traits += ["Battle Medic", "Healing Rerolls"]
+        return character
+
+
+class Lucky(Feat):
+    def __init__(self):
+        super().__init__()
+        self.name = "Lucky"
+        self.description = "You're lucky!"
+
+    def apply_to_character(self, character: Character):
+        # TODO: Handle Lucky as a special ability (spell) that applies to next roll.
+        character.special_traits += ["Lucky"]
         return character
 
 
@@ -108,6 +104,83 @@ MagicInitiateDruid = MagicInitiate(spell_list="Druid")
 MagicInitiateWizard = MagicInitiate(spell_list="Wizard")
 
 
+class Musician(Feat):
+    def __init__(self):
+        super().__init__()
+        self.name = "Musician"
+        self.description = "You know how to play instruments for a crowd."
+
+    def apply_to_character(self, character: Character):
+        # TODO: Add special ability to add Heroic Inspiration to allies using the below note
+        # As you finish a Short or Long Rest, you can play a song on a Musical Instrument with which you have proficiency and give Heroic Inspiration to allies who hear the song. The number of allies you can affect in this way equals your Prof
+        character.todo += [
+            {
+                "Text": "Select an instrument to gain proficiency in.",
+                "Options": ["Bagpipes", "Drum", "Dulcimer", "Flute", "Horn", "Lute", "Lyre", "Pan Flute", "Shawm", "Viol"],
+                "Function": self.add_proficiencies,
+                "Choices": 3
+            }
+        ]
+        return character
+
+    def add_proficiencies(self, character, choices, **kwargs):
+        character.proficiencies["Tools"].extend(choices)
+        return character
+
+
+class SavageAttacker(Feat):
+    def __init__(self):
+        super().__init__()
+        self.name = "Savage Attacker"
+        self.description = "Once per turn when you hit a target with an attack, you may roll damage dice twice and sue either roll."
+
+    def apply_to_character(self, character: Character):
+        # TODO: Implement this in creatures.py with a once/turn check and a `savage`` kwarg
+        return character
+
+
+class Skilled(Feat):
+    def __init__(self):
+        super().__init__()
+        self.name = "Skilled"
+        self.description = "You're skilled!"
+
+    def apply_to_character(self, character: Character):
+        character.todo += [
+            {
+                "Text": "Select three tools/skills to gain proficiency in",
+                "Options": [
+                    "Tool - " + tool for tool in artisans_tools + other_tools
+                ] + [
+                    "Skill - " + skill for skill in dnd_skills
+                ],
+                "Function": self.add_proficiencies,
+                "Choices": 3
+            }
+        ]
+        return character
+
+    def add_proficiencies(self, character, choices, **kwargs):
+        for choice in choices:
+            if choice.startswith("Tool"):
+                character.proficiencies["Tools"].extend([choice.lstrip("Tool - ")])
+            else:
+                character.proficiencies["Skills"].extend([choice.lstrip("Skill - ")])
+
+
+class TavernBrawler(Feat):
+    def __init__(self):
+        super().__init__()
+        self.name = "Tavern Brawler"
+        self.description = "You know how to fight with your bare hands."
+
+    def apply_to_character(self, character: Character):
+        # NOTE: Increased unarmed damage is handled in weapons.py
+        # TODO: Implement Damage Rerolls and Push
+        character.proficiencies["Weapons"] += "Improvised"
+        return character
+
+
 class Tough(Feat):
     def __init__(self):
         super().__init__()
@@ -116,3 +189,6 @@ class Tough(Feat):
 
     def apply_to_character(self, character):
         character.max_hp += 2 * character.level
+
+
+# TODO: Complete the rest of the feats!

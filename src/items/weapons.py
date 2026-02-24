@@ -3,8 +3,8 @@ from src.items.items import Item
 
 
 class Weapon(Item):
-    def __init__(self, name="Weapon", description=""):
-        super().__init__()
+    def __init__(self, name="Weapon", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.type = "Weapon"
         self.name = name
         self.description = description
@@ -29,8 +29,8 @@ class Weapon(Item):
 
 
 class Unarmed(Weapon):
-    def __init__(self, name="Unarmed Strike", description=""):
-        super().__init__()
+    def __init__(self, name="Unarmed Strike", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Unarmed"
@@ -49,8 +49,8 @@ class Unarmed(Weapon):
 
 
 class Club(Weapon):
-    def __init__(self, name="Club", description=""):
-        super().__init__()
+    def __init__(self, name="Club", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -63,8 +63,8 @@ class Club(Weapon):
 
 
 class Dagger(Weapon):
-    def __init__(self, name="Dagger", description=""):
-        super().__init__()
+    def __init__(self, name="Dagger", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -79,8 +79,8 @@ class Dagger(Weapon):
 
 
 class Greatclub(Weapon):
-    def __init__(self, name="Greatclub", description=""):
-        super().__init__()
+    def __init__(self, name="Greatclub", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -93,8 +93,8 @@ class Greatclub(Weapon):
 
 
 class Handaxe(Weapon):
-    def __init__(self, name="Handaxe", description=""):
-        super().__init__()
+    def __init__(self, name="Handaxe", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -109,8 +109,8 @@ class Handaxe(Weapon):
 
 
 class Javelin(Weapon):
-    def __init__(self, name="Javelin", description=""):
-        super().__init__()
+    def __init__(self, name="Javelin", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -125,8 +125,8 @@ class Javelin(Weapon):
 
 
 class LightHammer(Weapon):
-    def __init__(self, name="Light Hammer", description=""):
-        super().__init__()
+    def __init__(self, name="Light Hammer", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -141,8 +141,8 @@ class LightHammer(Weapon):
 
 
 class Mace(Weapon):
-    def __init__(self, name="Mace", description=""):
-        super().__init__()
+    def __init__(self, name="Mace", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -154,8 +154,8 @@ class Mace(Weapon):
 
 
 class Quarterstaff(Weapon):
-    def __init__(self, name="Quarterstaff", description=""):
-        super().__init__()
+    def __init__(self, name="Quarterstaff", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -169,8 +169,8 @@ class Quarterstaff(Weapon):
 
 
 class Sickle(Weapon):
-    def __init__(self, name="Sickle", description=""):
-        super().__init__()
+    def __init__(self, name="Sickle", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -183,8 +183,8 @@ class Sickle(Weapon):
 
 
 class Spear(Weapon):
-    def __init__(self, name="Spear", description=""):
-        super().__init__()
+    def __init__(self, name="Spear", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -202,8 +202,8 @@ class Spear(Weapon):
 # Simple Ranged Weapons
 
 class Dart(Weapon):
-    def __init__(self, name="Dart", description=""):
-        super().__init__()
+    def __init__(self, name="Dart", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -219,8 +219,8 @@ class Dart(Weapon):
 
 
 class LightCrossbow(Weapon):
-    def __init__(self, name="Light Crossbow", description=""):
-        super().__init__()
+    def __init__(self, name="Light Crossbow", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -237,8 +237,8 @@ class LightCrossbow(Weapon):
 
 
 class Shortbow(Weapon):
-    def __init__(self, name="Shortbow", description=""):
-        super().__init__()
+    def __init__(self, name="Shortbow", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -255,8 +255,8 @@ class Shortbow(Weapon):
 
 
 class Sling(Weapon):
-    def __init__(self, name="Sling", description=""):
-        super().__init__()
+    def __init__(self, name="Sling", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Simple"
@@ -275,8 +275,8 @@ class Sling(Weapon):
 # Martial Melee Weapons
 
 class Battleaxe(Weapon):
-    def __init__(self, name="Battleaxe", description=""):
-        super().__init__()
+    def __init__(self, name="Battleaxe", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -290,8 +290,8 @@ class Battleaxe(Weapon):
 
 
 class Flail(Weapon):
-    def __init__(self, name="Flail", description=""):
-        super().__init__()
+    def __init__(self, name="Flail", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -303,8 +303,8 @@ class Flail(Weapon):
 
 
 class Glaive(Weapon):
-    def __init__(self, name="Glaive", description=""):
-        super().__init__()
+    def __init__(self, name="Glaive", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -317,8 +317,8 @@ class Glaive(Weapon):
 
 
 class Greataxe(Weapon):
-    def __init__(self, name="Greataxe", description=""):
-        super().__init__()
+    def __init__(self, name="Greataxe", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.category = "Martial"
         self.name = name
         self.description = description
@@ -331,8 +331,8 @@ class Greataxe(Weapon):
 
 
 class Greatsword(Weapon):
-    def __init__(self, name="Greatsword", description=""):
-        super().__init__()
+    def __init__(self, name="Greatsword", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -345,8 +345,8 @@ class Greatsword(Weapon):
 
 
 class Halberd(Weapon):
-    def __init__(self, name="Halberd", description=""):
-        super().__init__()
+    def __init__(self, name="Halberd", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -359,8 +359,8 @@ class Halberd(Weapon):
 
 
 class Lance(Weapon):
-    def __init__(self, name="Lance", description=""):
-        super().__init__()
+    def __init__(self, name="Lance", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -384,8 +384,8 @@ class Lance(Weapon):
 
 
 class Longsword(Weapon):
-    def __init__(self, name="Longsword", description=""):
-        super().__init__()
+    def __init__(self, name="Longsword", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -399,8 +399,8 @@ class Longsword(Weapon):
 
 
 class Maul(Weapon):
-    def __init__(self, name="Maul", description=""):
-        super().__init__()
+    def __init__(self, name="Maul", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -413,8 +413,8 @@ class Maul(Weapon):
 
 
 class Morningstar(Weapon):
-    def __init__(self, name="Morningstar", description=""):
-        super().__init__()
+    def __init__(self, name="Morningstar", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -426,8 +426,8 @@ class Morningstar(Weapon):
 
 
 class Pike(Weapon):
-    def __init__(self, name="Pike", description=""):
-        super().__init__()
+    def __init__(self, name="Pike", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -440,8 +440,8 @@ class Pike(Weapon):
 
 
 class Rapier(Weapon):
-    def __init__(self, name="Rapier", description=""):
-        super().__init__()
+    def __init__(self, name="Rapier", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -454,8 +454,8 @@ class Rapier(Weapon):
 
 
 class Scimitar(Weapon):
-    def __init__(self, name="Scimitar", description=""):
-        super().__init__()
+    def __init__(self, name="Scimitar", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -468,8 +468,8 @@ class Scimitar(Weapon):
 
 
 class Shortsword(Weapon):
-    def __init__(self, name="Shortsword", description=""):
-        super().__init__()
+    def __init__(self, name="Shortsword", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -482,8 +482,8 @@ class Shortsword(Weapon):
 
 
 class Trident(Weapon):
-    def __init__(self, name="Trident", description=""):
-        super().__init__()
+    def __init__(self, name="Trident", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -499,8 +499,8 @@ class Trident(Weapon):
 
 
 class Warhammer(Weapon):
-    def __init__(self, name="Warhammer", description=""):
-        super().__init__()
+    def __init__(self, name="Warhammer", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -514,8 +514,8 @@ class Warhammer(Weapon):
 
 
 class WarPick(Weapon):
-    def __init__(self, name="War Pick", description=""):
-        super().__init__()
+    def __init__(self, name="War Pick", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -529,8 +529,8 @@ class WarPick(Weapon):
 
 
 class Whip(Weapon):
-    def __init__(self, name="Whip", description=""):
-        super().__init__()
+    def __init__(self, name="Whip", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -545,8 +545,8 @@ class Whip(Weapon):
 # Martial Ranged Weapons
 
 class Blowgun(Weapon):
-    def __init__(self, name="Blowgun", description=""):
-        super().__init__()
+    def __init__(self, name="Blowgun", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -563,8 +563,8 @@ class Blowgun(Weapon):
 
 
 class HandCrossbow(Weapon):
-    def __init__(self, name="Hand Crossbow", description=""):
-        super().__init__()
+    def __init__(self, name="Hand Crossbow", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -581,8 +581,8 @@ class HandCrossbow(Weapon):
 
 
 class HeavyCrossbow(Weapon):
-    def __init__(self, name="Heavy Crossbow", description=""):
-        super().__init__()
+    def __init__(self, name="Heavy Crossbow", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -599,8 +599,8 @@ class HeavyCrossbow(Weapon):
 
 
 class Longbow(Weapon):
-    def __init__(self, name="Longbow", description=""):
-        super().__init__()
+    def __init__(self, name="Longbow", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -617,8 +617,8 @@ class Longbow(Weapon):
 
 
 class Musket(Weapon):
-    def __init__(self, name="Musket", description=""):
-        super().__init__()
+    def __init__(self, name="Musket", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"
@@ -635,8 +635,8 @@ class Musket(Weapon):
 
 
 class Pistol(Weapon):
-    def __init__(self, name="Pistol", description=""):
-        super().__init__()
+    def __init__(self, name="Pistol", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.category = "Martial"

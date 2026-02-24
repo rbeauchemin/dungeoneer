@@ -3,8 +3,8 @@ from src.items.items import Item
 
 
 class Tool(Item):
-    def __init__(self, name="Tool", description=""):
-        super().__init__()
+    def __init__(self, name="Tool", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.type = "Tool"
         self.name = name
         self.description = description
@@ -25,8 +25,8 @@ class Tool(Item):
 
 
 class AlchemistsSupplies(Tool):
-    def __init__(self, name="Alchemist's Supplies", description=""):
-        super().__init__()
+    def __init__(self, name="Alchemist's Supplies", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -38,8 +38,8 @@ class AlchemistsSupplies(Tool):
 
 
 class BrewersSupplies(Tool):
-    def __init__(self, name="Brewer's Supplies", description=""):
-        super().__init__()
+    def __init__(self, name="Brewer's Supplies", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -51,8 +51,8 @@ class BrewersSupplies(Tool):
 
 
 class CalligraphersSupplies(Tool):
-    def __init__(self, name="Calligrapher's Supplies", description=""):
-        super().__init__()
+    def __init__(self, name="Calligrapher's Supplies", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -62,9 +62,10 @@ class CalligraphersSupplies(Tool):
         self.weight = 5
         self.value = 10
 
+
 class CarpentersTools(Tool):
-    def __init__(self, name="Carpenter's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Carpenter's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Strength"
@@ -76,8 +77,8 @@ class CarpentersTools(Tool):
 
 
 class CartographersTools(Tool):
-    def __init__(self, name="Cartographer's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Cartographer's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Wisdom"
@@ -89,8 +90,8 @@ class CartographersTools(Tool):
 
 
 class CobblersTools(Tool):
-    def __init__(self, name="Cobbler's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Cobbler's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -102,8 +103,8 @@ class CobblersTools(Tool):
 
 
 class CooksUtensils(Tool):
-    def __init__(self, name="Cook's Utensils", description=""):
-        super().__init__()
+    def __init__(self, name="Cook's Utensils", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Wisdom"
@@ -115,8 +116,8 @@ class CooksUtensils(Tool):
 
 
 class GlassblowersTools(Tool):
-    def __init__(self, name="Glassblower's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Glassblower's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -128,8 +129,8 @@ class GlassblowersTools(Tool):
 
 
 class JewelersTools(Tool):
-    def __init__(self, name="Jeweler's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Jeweler's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -141,8 +142,8 @@ class JewelersTools(Tool):
 
 
 class LeatherworkersTools(Tool):
-    def __init__(self, name="Leatherworker's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Leatherworker's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -154,8 +155,8 @@ class LeatherworkersTools(Tool):
 
 
 class MasonsTools(Tool):
-    def __init__(self, name="Mason's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Mason's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Strength"
@@ -167,8 +168,8 @@ class MasonsTools(Tool):
 
 
 class PaintersSupplies(Tool):
-    def __init__(self, name="Painter's Supplies", description=""):
-        super().__init__()
+    def __init__(self, name="Painter's Supplies", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Wisdom"
@@ -180,8 +181,8 @@ class PaintersSupplies(Tool):
 
 
 class PottersTools(Tool):
-    def __init__(self, name="Potter's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Potter's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -193,8 +194,8 @@ class PottersTools(Tool):
 
 
 class SmithsTools(Tool):
-    def __init__(self, name="Smith's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Smith's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Strength"
@@ -206,8 +207,8 @@ class SmithsTools(Tool):
 
 
 class TinkersTools(Tool):
-    def __init__(self, name="Tinker's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Tinker's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -219,8 +220,8 @@ class TinkersTools(Tool):
 
 
 class WeaversTools(Tool):
-    def __init__(self, name="Weaver's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Weaver's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -232,8 +233,8 @@ class WeaversTools(Tool):
 
 
 class WoodcarversTools(Tool):
-    def __init__(self, name="Woodcarver's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Woodcarver's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -245,8 +246,8 @@ class WoodcarversTools(Tool):
 
 
 class DisguiseKit(Tool):
-    def __init__(self, name="Disguise Kit", description=""):
-        super().__init__()
+    def __init__(self, name="Disguise Kit", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Charisma"
@@ -258,8 +259,8 @@ class DisguiseKit(Tool):
 
 
 class ForgeryKit(Tool):
-    def __init__(self, name="Forgery Kit", description=""):
-        super().__init__()
+    def __init__(self, name="Forgery Kit", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
@@ -271,8 +272,8 @@ class ForgeryKit(Tool):
 
 
 class GamingSet(Tool):
-    def __init__(self, name="Gaming Set", description=""):
-        super().__init__()
+    def __init__(self, name="Gaming Set", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Wisdom"
@@ -284,40 +285,40 @@ class GamingSet(Tool):
 
 
 class GamingSetDice(GamingSet):
-    def __init__(self, name="Gaming Set (Dice)", description=""):
-        super().__init__()
+    def __init__(self, name="Dice", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.value = 0.1
 
 
 class GamingSetDragonchess(GamingSet):
-    def __init__(self, name="Gaming Set (Dragonchess)", description=""):
-        super().__init__()
+    def __init__(self, name="Dragonchess", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.value = 1
 
 
 class GamingSetPlayingCards(GamingSet):
-    def __init__(self, name="Gaming Set (Playing Cards)", description=""):
-        super().__init__()
+    def __init__(self, name="Playing Cards", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.value = 0.5
 
 
 class GamingSetThreeDragonAnte(GamingSet):
-    def __init__(self, name="Gaming Set (Three-Dragon Ante)", description=""):
-        super().__init__()
+    def __init__(self, name="Three-Dragon Ante", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.value = 1
 
 
 class HerbalismKit(Tool):
-    def __init__(self, name="Herbalism Kit", description=""):
-        super().__init__()
+    def __init__(self, name="Herbalism Kit", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -329,8 +330,8 @@ class HerbalismKit(Tool):
 
 
 class MusicalInstrument(Tool):
-    def __init__(self, name="Musical Instrument", description=""):
-        super().__init__()
+    def __init__(self, name="Musical Instrument", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Charisma"
@@ -342,8 +343,8 @@ class MusicalInstrument(Tool):
 
 
 class BagpipesInstrument(MusicalInstrument):
-    def __init__(self, name="Bagpipes", description=""):
-        super().__init__()
+    def __init__(self, name="Bagpipes", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 6
@@ -351,8 +352,8 @@ class BagpipesInstrument(MusicalInstrument):
 
 
 class DrumInstrument(MusicalInstrument):
-    def __init__(self, name="Drum", description=""):
-        super().__init__()
+    def __init__(self, name="Drum", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 3
@@ -360,8 +361,8 @@ class DrumInstrument(MusicalInstrument):
 
 
 class DulcimerInstrument(MusicalInstrument):
-    def __init__(self, name="Dulcimer", description=""):
-        super().__init__()
+    def __init__(self, name="Dulcimer", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 10
@@ -369,8 +370,8 @@ class DulcimerInstrument(MusicalInstrument):
 
 
 class FluteInstrument(MusicalInstrument):
-    def __init__(self, name="Flute", description=""):
-        super().__init__()
+    def __init__(self, name="Flute", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 1
@@ -378,8 +379,8 @@ class FluteInstrument(MusicalInstrument):
 
 
 class HornInstrument(MusicalInstrument):
-    def __init__(self, name="Horn", description=""):
-        super().__init__()
+    def __init__(self, name="Horn", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 2
@@ -387,8 +388,8 @@ class HornInstrument(MusicalInstrument):
 
 
 class LuteInstrument(MusicalInstrument):
-    def __init__(self, name="Lute", description=""):
-        super().__init__()
+    def __init__(self, name="Lute", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 2
@@ -396,8 +397,8 @@ class LuteInstrument(MusicalInstrument):
 
 
 class LyreInstrument(MusicalInstrument):
-    def __init__(self, name="Lyre", description=""):
-        super().__init__()
+    def __init__(self, name="Lyre", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 2
@@ -405,8 +406,8 @@ class LyreInstrument(MusicalInstrument):
 
 
 class PanFluteInstrument(MusicalInstrument):
-    def __init__(self, name="Pan Flute", description=""):
-        super().__init__()
+    def __init__(self, name="Pan Flute", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 2
@@ -414,8 +415,8 @@ class PanFluteInstrument(MusicalInstrument):
 
 
 class ShawmInstrument(MusicalInstrument):
-    def __init__(self, name="Shawm", description=""):
-        super().__init__()
+    def __init__(self, name="Shawm", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 1
@@ -423,8 +424,8 @@ class ShawmInstrument(MusicalInstrument):
 
 
 class ViolInstrument(MusicalInstrument):
-    def __init__(self, name="Viol", description=""):
-        super().__init__()
+    def __init__(self, name="Viol", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.weight = 1
@@ -432,8 +433,8 @@ class ViolInstrument(MusicalInstrument):
 
 
 class NavigatorsTools(Tool):
-    def __init__(self, name="Navigator's Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Navigator's Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Wisdom"
@@ -445,8 +446,8 @@ class NavigatorsTools(Tool):
 
 
 class PoisonersKit(Tool):
-    def __init__(self, name="Poisoner's Kit", description=""):
-        super().__init__()
+    def __init__(self, name="Poisoner's Kit", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Intelligence"
@@ -458,8 +459,8 @@ class PoisonersKit(Tool):
 
 
 class ThievesTools(Tool):
-    def __init__(self, name="Thieves' Tools", description=""):
-        super().__init__()
+    def __init__(self, name="Thieves' Tools", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
         self.name = name
         self.description = description
         self.ability = "Dexterity"
