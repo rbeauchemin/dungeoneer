@@ -14,9 +14,11 @@ class Background:
         self.starting_equipment_details = kwargs.get("starting_equipment_details", [])
         self.todo = [
             {
-                "Text": "Choose two-three abilities to increase. One ability increases by 2, the other by 1. Or, three abilities increase by 1 each.",
+                "Text": "Choose abilities to increase. You may choose to increase one ability twice.",
                 "Options": self.ability_scores,
-                "Function": self.select_ability_scores
+                "Function": self.select_ability_scores,
+                "Choices": 3,
+                "AllowSame": True
             },
             {
                 "Text": f"Select either 50 gold or starting equipment ({self.starting_equipment_details}).",
@@ -39,17 +41,24 @@ class Background:
     def select_ability_scores(self, character, choices, **kwargs):
         """You can either add 2 to one ability and 1 to another, or add 1 to all three.
         """
-        if len(choices) == 2:
-            character.ability_scores[choices[0]] += 2
-            character.ability_scores[choices[1]] += 1
-        elif len(choices) == 3:
-            for ability in choices:
-                if ability in self.ability_scores:
-                    character.ability_scores[ability] += 1
-
+        counter = {}
         for ability in choices:
-            if ability in self.ability_scores:
-                character.ability_scores[ability] += 1
+            counter[ability] = counter.get(ability, 0) + 1
+        if len(counter) == 1:
+            print("You may not select the same ability 3 times")
+            character.todo += [
+                {
+                    "Text": "Choose abilities to increase. You may choose to increase one ability twice.",
+                    "Options": self.ability_scores,
+                    "Function": self.select_ability_scores,
+                    "Choices": 3,
+                    "AllowSame": True
+                }
+            ]
+            return
+        else:
+            for ability in counter:
+                character.ability_scores[ability] += counter[ability]
         return character
 
     def grant_starting_equipment(self, character, choices, **kwargs):
