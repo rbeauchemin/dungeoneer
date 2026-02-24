@@ -1,6 +1,6 @@
 from typing import Literal
-from creatures import Character
-from common import artisans_tools, other_tools, dnd_skills
+from src.creatures import Character
+from src.common import artisans_tools, other_tools, dnd_skills
 
 
 class Feat:

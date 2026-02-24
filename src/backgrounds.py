@@ -31,7 +31,8 @@ class Background:
             "Armor": [],
             "Weapons": [],
             "Tools": [],
-            "Skills": []
+            "Skills": [],
+            "Saving Throws": []
         }
         self.starting_equipment = []
 
@@ -54,6 +55,18 @@ class Background:
     def grant_starting_equipment(self, character, choices, **kwargs):
         # Implemented by subclasses
         return
+
+    def apply_to_character(self, character):
+        character.proficiencies["Armor"] += self.proficiencies["Armor"]
+        character.proficiencies["Weapons"] += self.proficiencies["Weapons"]
+        character.proficiencies["Tools"] += self.proficiencies["Tools"]
+        character.proficiencies["Saving Throws"] += self.proficiencies["Saving Throws"]
+        character.proficiencies["Skills"] += self.proficiencies["Skills"]
+        character.feats += self.feats
+        for feat in self.feats:
+            feat.apply_to_character(character)
+        character.todo += self.todo
+        return character
 
 
 class Acolyte(Background):

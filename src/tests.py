@@ -6,6 +6,7 @@ def test_aasimar_abilities():
     char = Character(
         name="Ylera",
         species="Aasimar",
+        background="Acolyte",
         classes=[Barbarian(level=1)],
         description="Ylera is an angelic ranger, known for her sharp senses and unwavering determination in the face of danger.",
         ability_score_bonuses={
@@ -20,6 +21,7 @@ def test_aasimar_abilities():
     char2 = Character(
         name="Thokk",
         species="Aasimar",
+        background="Acolyte",
         classes=[Barbarian(level=3)],
         description="Thokk is a celestial warrior, wielding his sword with divine purpose and protecting the innocent from evil.",
         ability_score_bonuses={
@@ -57,6 +59,7 @@ def test_dragonborn_abilities():
     char = Character(
         name="Drake",
         species="Dragonborn",
+        background="Acolyte",
         classes=[Barbarian(level=5)],
         description="Drake is a fierce dragonborn warrior, known for his strength and fiery breath.",
         ability_score_bonuses={
@@ -72,6 +75,7 @@ def test_dragonborn_abilities():
     char2 = Character(
         name="Gobby",
         species="Goblin",
+        background="Criminal",
         classes=[Barbarian(level=1)],
         description="A sneaky goblin, always looking for trouble.",
         ability_score_bonuses={

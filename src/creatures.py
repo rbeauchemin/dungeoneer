@@ -14,7 +14,7 @@ default_params = {
 
 
 class Character:
-    def __init__(self, name, species, classes=[], equipment=[], spells=[], description="", ability_score_bonuses={}, **kwargs):
+    def __init__(self, name, species, background, classes=[], equipment=[], spells=[], description="", ability_score_bonuses={}, **kwargs):
         # Set base traits and abilities
         self.todo = []
         self.name = name
@@ -71,9 +71,19 @@ class Character:
         self.full_rest_hours = self.species.full_rest_hours
         self.special_abilities = self.species.special_abilities
         self.special_traits = self.species.special_traits
+        if "feats" in kwargs:
+            self.feats = kwargs['feats']
+        else:
+            self.feats = []
         # SET ALL BACKGROUND ATTRIBUTES
-        # TODO: ADD background setup
-
+        if isinstance(background, str):
+            try:
+                self.background = getattr(importlib.import_module("src.backgrounds"), background)(**kwargs)
+            except AttributeError:
+                raise Exception(f"Background {background} could not be found")
+        else:
+            self.background = background
+        self.background.apply_to_character(self)
         # SET ALL CLASS ATTRIBUTES
         self.classes = classes
         for cls in classes:
@@ -96,10 +106,6 @@ class Character:
                 score = roll_dice_discard_lowest(6, 4)
                 self.ability_scores[ability] = score
                 print(f"{ability}: {score}")
-        if "feats" in kwargs:
-            self.feats = kwargs['feats']
-        else:
-            self.feats = []
         # TODO: Handle traits, resistances, proficiencies, special abilities
         self.description = self.description + " " + description
         self.species.ability_scores = self.ability_scores
