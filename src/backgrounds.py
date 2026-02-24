@@ -3,9 +3,18 @@ from src.feats import (
     MagicInitiateCleric, MagicInitiateDruid, MagicInitiateWizard,
     SavageAttacker, Skilled, TavernBrawler, Tough
 )
+from src.items import (
+    CalligraphersSupplies, CartographersTools, CarpentersTools,
+    HerbalismKit, ForgeryKit, NavigatorsTools, ThievesTools,
+    Dagger, Quarterstaff, Sickle, Spear, Shortbow, LightCrossbow,
+    TravelersClothes, FineClothes, Robe, Costume,
+    HealersKit, Crowbar, Shovel,
+    Book, HolySymbol, Parchment, Pouch, Mirror, Perfume,
+    IronPot, HoodedLantern, Manacles, Quiver, Bedroll,
+    Lamp, OilFlask, Tent, Rope, Arrows, Bolts,
+)
 
 
-# TODO: All equipment below should have classes added instead of text, allowing use of quantity fields as well
 class Background:
     def __init__(self, **kwargs):
         self.description = ""
@@ -92,11 +101,12 @@ class Acolyte(Background):
             character.gold += 50
         else:
             character.inventory += [
-                "Calligrapher's Supplies",
-                "Book (prayers)",
-                "Holy Symbol",
-                "Robe"
-            ] + ["Parchment"] * 10
+                CalligraphersSupplies(),
+                Book(name="Book (Prayers)"),
+                HolySymbol(),
+                Robe(),
+                Parchment(quantity=10),
+            ]
             character.gold += 8
         return character
 
@@ -143,7 +153,9 @@ class Artisan(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += [self.proficiencies["Tools"], "Pouch", "Pouch", "Traveler's Clothes"]
+            if self.proficiencies["Tools"]:
+                character.add_item(self.proficiencies["Tools"][0])
+            character.inventory += [Pouch(), Pouch(), TravelersClothes()]
             character.gold += 32
         return character
 
@@ -161,7 +173,7 @@ class Charlatan(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Forgery Kit", "Costume", "Fine Clothes"]
+            character.inventory += [ForgeryKit(), Costume(), FineClothes()]
             character.gold += 15
         return character
 
@@ -179,7 +191,10 @@ class Criminal(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Dagger", "Dagger", "Thieves' Tools", "Crowbar", "Pouch", "Pouch", "Traveler's Clothes"]
+            character.inventory += [
+                Dagger(), Dagger(), ThievesTools(), Crowbar(),
+                Pouch(), Pouch(), TravelersClothes(),
+            ]
             character.gold += 16
         return character
 
@@ -209,7 +224,9 @@ class Entertainer(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Costume", "Costume", "Mirror", "Perfume", "Traveler's Clothes"] + self.proficiencies["Tools"]
+            if self.proficiencies["Tools"]:
+                character.add_item(self.proficiencies["Tools"][0])
+            character.inventory += [Costume(), Costume(), Mirror(), Perfume(), TravelersClothes()]
             character.gold += 11
         return character
 
@@ -234,7 +251,10 @@ class Farmer(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Sickle", "Carpenter's Tools", "Healer's Kit", "Iron Pot", "Shovel", "Traveler's Clothes"]
+            character.inventory += [
+                Sickle(), CarpentersTools(), HealersKit(),
+                IronPot(), Shovel(), TravelersClothes(),
+            ]
             character.gold += 30
         return character
 
@@ -263,7 +283,13 @@ class Guard(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Spear", "Light Crossbow", "Hooded Lantern", "Manacles", "Quiver", "Traveler's Clothes"] + self.proficiencies["Tools"] + ["Bolts"] * 20
+            if self.proficiencies["Tools"]:
+                character.add_item(self.proficiencies["Tools"][0])
+            character.inventory += [
+                Spear(), LightCrossbow(), HoodedLantern(),
+                Manacles(), Quiver(), TravelersClothes(),
+                Bolts(quantity=20),
+            ]
             character.gold += 12
         return character
 
@@ -281,7 +307,11 @@ class Hermit(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Quarterstaff", "Herbalism Kit", "Bedroll", "Book (philosophy)", "Lamp", "Traveler's Clothes"] + ["Oil Flask"] * 3
+            character.inventory += [
+                Quarterstaff(), HerbalismKit(), Bedroll(),
+                Book(name="Book (Philosophy)"), Lamp(), TravelersClothes(),
+                OilFlask(quantity=3),
+            ]
             character.gold += 16
         return character
 
@@ -299,7 +329,11 @@ class Guide(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Shortbow", "Cartographer's Tools", "Bedroll", "Quiver", "Tent", "Traveler's Clothes"] + ["Arrows"] * 20
+            character.inventory += [
+                Shortbow(), CartographersTools(), Bedroll(),
+                Quiver(), Tent(), TravelersClothes(),
+                Arrows(quantity=20),
+            ]
             character.gold += 3
         return character
 
@@ -317,7 +351,7 @@ class Merchant(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Navigator's Tools", "Pouch", "Pouch", "Traveler's Clothes"]
+            character.inventory += [NavigatorsTools(), Pouch(), Pouch(), TravelersClothes()]
             character.gold += 22
         return character
 
@@ -346,7 +380,9 @@ class Noble(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Fine Clothes", "Perfume"] + self.proficiencies["Tools"]
+            if self.proficiencies["Tools"]:
+                character.add_item(self.proficiencies["Tools"][0])
+            character.inventory += [FineClothes(), Perfume()]
             character.gold += 29
         return character
 
@@ -364,7 +400,11 @@ class Sage(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Quarterstaff", "Calligrapher's Supplies", "Book (history)", "Robe"] + ["Parchment"] * 8
+            character.inventory += [
+                Quarterstaff(), CalligraphersSupplies(),
+                Book(name="Book (History)"), Robe(),
+                Parchment(quantity=8),
+            ]
             character.gold += 8
         return character
 
@@ -382,7 +422,7 @@ class Sailor(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Dagger", "Navigator's Tools", "Rope", "Traveler's Clothes"]
+            character.inventory += [Dagger(), NavigatorsTools(), Rope(), TravelersClothes()]
             character.gold += 20
         return character
 
@@ -400,7 +440,10 @@ class Scribe(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Calligrapher's Supplies", "Fine Clothes", "Lamp"] + ["Oil Flask"] * 3 + ["Parchment"] * 12
+            character.inventory += [
+                CalligraphersSupplies(), FineClothes(), Lamp(),
+                OilFlask(quantity=3), Parchment(quantity=12),
+            ]
             character.gold += 23
         return character
 
@@ -429,7 +472,12 @@ class Soldier(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Spear", "Shortbow", "Healer's Kit", "Quiver", "Traveler's Clothes"] + self.proficiencies["Tools"] + ["Arrows"] * 20
+            if self.proficiencies["Tools"]:
+                character.add_item(self.proficiencies["Tools"][0])
+            character.inventory += [
+                Spear(), Shortbow(), HealersKit(),
+                Quiver(), TravelersClothes(), Arrows(quantity=20),
+            ]
             character.gold += 14
         return character
 
@@ -459,6 +507,11 @@ class Wayfarer(Background):
         if "50 gold" in choices:
             character.gold += 50
         else:
-            character.inventory += ["Dagger", "Dagger", "Thieves' Tools", "Bedroll", "Pouch", "Pouch", "Traveler's Clothes"] + self.tool_preference
+            for tool in self.tool_preference:
+                character.add_item(tool)
+            character.inventory += [
+                Dagger(), Dagger(), ThievesTools(),
+                Bedroll(), Pouch(), Pouch(), TravelersClothes(),
+            ]
             character.gold += 16
         return character

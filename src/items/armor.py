@@ -201,6 +201,34 @@ class PlateArmor(Armor):
         self.value = 1500
 
 
+class TravelersClothes(Clothing):
+    def __init__(self, name="Traveler's Clothes", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.weight = 4
+        self.value = 2
+
+
+class FineClothes(Clothing):
+    def __init__(self, name="Fine Clothes", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.weight = 6
+        self.value = 15
+
+
+class Robe(Clothing):
+    def __init__(self, name="Robe", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.weight = 4
+        self.value = 1
+
+
+class Costume(Clothing):
+    def __init__(self, name="Costume", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.weight = 4
+        self.value = 5
+
+
 class Shield(Armor):
     def __init__(self, name="Shield", description="", **kwargs):
         super().__init__(name, description, **kwargs)

@@ -469,3 +469,49 @@ class ThievesTools(Tool):
         self.craft = []
         self.weight = 1
         self.value = 25
+
+
+class HealersKit(Tool):
+    def __init__(self, name="Healer's Kit", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.ability = "Wisdom"
+        self.utilize = "Stabilize a creature without a Medicine check"
+        self.weight = 3
+        self.value = 5
+
+
+class Crowbar(Tool):
+    def __init__(self, name="Crowbar", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.ability = "Strength"
+        self.utilize = "Pry open a door or container (grants Advantage on Strength checks)"
+        self.weight = 5
+        self.value = 2
+
+
+class Shovel(Tool):
+    def __init__(self, name="Shovel", description="", **kwargs):
+        super().__init__(name, description, **kwargs)
+        self.ability = "Strength"
+        self.utilize = "Dig a hole or trench"
+        self.weight = 5
+        self.value = 2
+
+
+# Aliases so Character.add_item(str) can resolve gaming set and instrument names
+# via clean_text (strips non-alphanumeric chars) matching class names.
+Dice = GamingSetDice
+Dragonchess = GamingSetDragonchess
+PlayingCards = GamingSetPlayingCards
+ThreeDragonAnte = GamingSetThreeDragonAnte
+
+Bagpipes = BagpipesInstrument
+Drum = DrumInstrument
+Dulcimer = DulcimerInstrument
+Flute = FluteInstrument
+Horn = HornInstrument
+Lute = LuteInstrument
+Lyre = LyreInstrument
+PanFlute = PanFluteInstrument
+Shawm = ShawmInstrument
+Viol = ViolInstrument
