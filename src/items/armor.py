@@ -12,7 +12,7 @@ class Armor(Item):
         # None, Light, Medium, Heavy
         self.category = None
         self.base_ac = 10
-        self.add_dex = False
+        self.add_dex = True
         self.dex_add_max = 10
         self.strength_required = 0
         self.stealth_disadvantage = False
@@ -42,6 +42,7 @@ class Armor(Item):
 class Clothing(Armor):
     def __init__(self, name="Clothing", description="", **kwargs):
         super().__init__(name, description, **kwargs)
+        self.type = "Clothing"
         self.name = name
         self.description = description
 
@@ -54,7 +55,6 @@ class PaddedArmor(Armor):
         self.category = "Light"
         self.stealth_disadvantage = True
         self.base_ac = 11
-        self.add_dex = True
         self.weight = 8
         self.value = 5
 
@@ -66,7 +66,6 @@ class LeatherArmor(Armor):
         self.description = description
         self.category = "Light"
         self.base_ac = 11
-        self.add_dex = True
         self.weight = 10
         self.value = 10
 
@@ -90,7 +89,6 @@ class HideArmor(Armor):
         self.description = description
         self.category = "Medium"
         self.base_ac = 12
-        self.add_dex = True
         self.dex_add_max = 2
         self.weight = 12
         self.value = 10
@@ -103,7 +101,6 @@ class ChainShirt(Armor):
         self.description = description
         self.category = "Medium"
         self.base_ac = 13
-        self.add_dex = True
         self.dex_add_max = 2
         self.weight = 20
         self.value = 50
@@ -116,7 +113,6 @@ class ScaleMail(Armor):
         self.description = description
         self.category = "Medium"
         self.base_ac = 14
-        self.add_dex = True
         self.dex_add_max = 2
         self.stealth_disadvantage = True
         self.weight = 45
@@ -130,7 +126,6 @@ class Breastplate(Armor):
         self.description = description
         self.category = "Medium"
         self.base_ac = 14
-        self.add_dex = True
         self.dex_add_max = 2
         self.weight = 20
         self.value = 400
@@ -143,7 +138,6 @@ class HalfPlateArmor(Armor):
         self.description = description
         self.category = "Medium"
         self.base_ac = 12
-        self.add_dex = True
         self.dex_add_max = 2
         self.stealth_disadvantage = True
         self.weight = 40
@@ -157,6 +151,7 @@ class RingMail(Armor):
         self.description = description
         self.category = "Heavy"
         self.base_ac = 14
+        self.add_dex = False
         self.stealth_disadvantage = True
         self.weight = 40
         self.value = 30
@@ -169,6 +164,7 @@ class ChainMail(Armor):
         self.description = description
         self.category = "Heavy"
         self.base_ac = 16
+        self.add_dex = False
         self.stealth_disadvantage = True
         self.strength_required = 13
         self.weight = 55
@@ -182,6 +178,7 @@ class SplintArmor(Armor):
         self.description = description
         self.category = "Heavy"
         self.base_ac = 17
+        self.add_dex = False
         self.stealth_disadvantage = True
         self.strength_required = 15
         self.weight = 60
@@ -195,6 +192,7 @@ class PlateArmor(Armor):
         self.description = description
         self.category = "Heavy"
         self.base_ac = 18
+        self.add_dex = False
         self.stealth_disadvantage = True
         self.strength_required = 15
         self.weight = 65
@@ -236,6 +234,7 @@ class Shield(Armor):
         self.description = description
         # Shields are just different enough that I felt it warrants a new type
         self.type = "Shield"
+        self.add_dex = False
         self.base_ac = 2
         self.weight = 6
         self.value = 10

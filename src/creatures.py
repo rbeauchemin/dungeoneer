@@ -1,3 +1,4 @@
+from copy import deepcopy
 import importlib
 from typing import Optional
 from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals, dnd_skills, clean_text
@@ -239,15 +240,17 @@ class Character:
             for equipped_item in self.equipped_items:
                 if equipped_item.type == "Shield":
                     self.unequip_item(equipped_item.name)
-        elif item.type == "Armor":
-            # can't have two armors
+        elif item.type in ["Armor", "Clothing"]:
+            # can't have two armors/clothing
             for equipped_item in self.equipped_items:
-                if equipped_item.type == "Armor":
+                if equipped_item.type in ["Armor", "Clothing"]:
                     self.unequip_item(equipped_item.name)
         if hasattr(item, "on_equip"):
             item.on_equip(self)
-        self.equipped_items.append(item)
-        self.inventory.remove(item)
+        equippable_item = deepcopy(item)
+        equippable_item.quantity = 1
+        self.remove_item(item, quantity=1)
+        self.equipped_items.append(equippable_item)
 
     def unequip_item(self, item_name):
         item = None
@@ -259,7 +262,7 @@ class Character:
             print(f"{self.name} does not have {item_name} equipped.")
             return
         self.equipped_items.remove(item)
-        self.inventory.append(item)
+        self.add_item(item)
         if hasattr(item, "on_unequip"):
             item.on_unequip(self)
         print(f"{self.name} has unequipped {item.name}.")
