@@ -285,7 +285,7 @@ class Bard(Class):
                     description=(
                         "You have mastered two words of power.\n"
                         "Power Word Fortify: You touch up to 5 willing creatures. "
-                        "Distribute up to 5 × (2d12 + Charisma modifier) Hit Points "
+                        "Distribute up to 5 x (2d12 + Charisma modifier) Hit Points "
                         "among them in any way you choose. This doesn't require "
                         "Concentration and can't be undone.\n"
                         "Power Word Heal: You touch a creature and restore all its "
