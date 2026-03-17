@@ -228,7 +228,7 @@ class Artificer(Class):
                     range_="Self",
                     components=[],
                     duration="Permanent",
-                    description="Cheat Death: If reduced to 0 HP but not killed outright, you can disintegrate any number of Uncommon or Rare Replicate Magic Items; your HP instead becomes 20 × the number of items disintegrated. Magical Guidance: When you finish a Short Rest, if you are attuned to at least one magic item, regain all expended uses of Flash of Genius.",
+                    description="Cheat Death: If reduced to 0 HP but not killed outright, you can disintegrate any number of Uncommon or Rare Replicate Magic Items; your HP instead becomes 20 x the number of items disintegrated. Magical Guidance: When you finish a Short Rest, if you are attuned to at least one magic item, regain all expended uses of Flash of Genius.",
                 )
             ]
 

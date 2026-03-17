@@ -78,7 +78,7 @@ class Monk(Class):
                 "Function": self._set_subclass,
             })
         elif level == 4:
-            character.special_traits.append("Slow Fall: Reduce fall damage by 5 × your Monk level.")
+            character.special_traits.append("Slow Fall: Reduce fall damage by 5 x your Monk level.")
         elif level == 5:
             character.special_traits.append("Extra Attack: You can attack twice when you take the Attack action.")
             character.special_traits.append(
