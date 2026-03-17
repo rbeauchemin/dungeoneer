@@ -455,37 +455,3 @@ class Character:
         else:
             # TODO: Implement short rest logic with hit die
             pass
-
-
-# Example usage
-if __name__ == "__main__":
-    from src.classes import Barbarian
-    char = Character(
-        name="Ylera",
-        species="Aasimar",
-        classes=[Barbarian(level=1)],
-        description="Ylera is an angelic barbarian, known for her sharp senses and unwavering determination in the face of danger.",
-        ability_score_bonuses={
-            "Strength": 12,
-            "Dexterity": 16,
-            "Constitution": 12,
-            "Intelligence": 12,
-            "Wisdom": 14,
-            "Charisma": 16
-        }
-    )
-    char2 = Character(
-        name="Thokk",
-        species="Aasimar",
-        classes=[Barbarian(level=1)],
-        description="Thokk is a celestial barbarian, wielding his sword with divine purpose and protecting the innocent from evil.",
-        ability_score_bonuses={
-            "Strength": 16,
-            "Dexterity": 12,
-            "Constitution": 14,
-            "Intelligence": 10,
-            "Wisdom": 12,
-            "Charisma": 14
-        }
-    )
-    print(char)
