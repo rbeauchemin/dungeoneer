@@ -23,6 +23,7 @@ class Character:
         self.gold = 0
         self.d20_modifier = 0
         self.active_effects = []
+        self.position = None   # set by Map.place_creature / Map.move_creature
         self.inventory = []
         self.inventory += equipment
         self.death_saves = {
@@ -64,6 +65,8 @@ class Character:
         self.speed = self.species.speed
         self.swimming_speed = self.species.swimming_speed
         self.flying_speed = self.species.flying_speed
+        self.climbing_speed = getattr(self.species, "climbing_speed", 0)
+        self.climbing_speed = self.species.climbing_speed
         self.spells = self.species.spells
         self.spells += spells
         self.resistances = self.species.resistances
@@ -113,6 +116,9 @@ class Character:
         self.species.advantages = self.advantages
         self.spellcasting_ability = self.classes[0].spellcasting_ability if self.classes else "None"
         self.weapon_mastery = []
+        self.actions_left = 1
+        self.bonus_actions_left = 1
+        # TODO: create a better actions handling system that accounts for multiattack, legendary actions, reactions, bonus actions, and action types (e.g. some abilities can only be used as a reaction, some can only be used on the turn you take the Attack action, etc.)
 
     def __str__(self):
         return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.inventory)}"
@@ -400,6 +406,19 @@ class Character:
         from src.conditions import Grappled
         Grappled(by=self).apply(target)
 
+    def dash(self, as_bonus_action=False):
+        if as_bonus_action:
+            if self.bonus_actions_left <= 0:
+                print("No bonus actions left to dash.")
+                return
+            self.bonus_actions_left -= 1
+        else:
+            if self.actions_left <= 0:
+                print("No actions left to dash.")
+                return
+            self.actions_left -= 1
+        self.bonus_speed = max([self.speed, self.swimming_speed, self.flying_speed, self.climbing_speed])
+
     def roll_check(self, ability, beat=None, bonus=0, check_type=None, advantage_counter=0, critical_threshold: int = 20, failure_threshold: int = 1, tie_succeeds: bool = True):
         # check type can be ["Abilities", "Saving Throws", "Skills", "Attack", "Initiative"]
         if isinstance(self.auto_fail[check_type], list):
@@ -455,3 +474,73 @@ class Character:
         else:
             # TODO: Implement short rest logic with hit die
             pass
+
+    def move(self, map_, x: int, y: int, z: int = 0) -> dict:
+        """Move toward (x, y, z) using A* from map_.find_path().
+
+        Step costs follow the Pythagorean theorem — moving through d axes costs
+        sqrt(d) feet per cell_size (cardinal = 1x, diagonal = √2x, 3-D = √3x).
+        Difficult terrain doubles each step's cost.
+
+        Speed pool chosen from the path's z-range:
+          - any step with z > 0  → flying_speed
+          - any step with z < 0  → swimming_speed
+          - otherwise            → speed (walking) + bonus_speed if set
+
+        Returns a dict:
+          path               — full planned path as list of (x, y, z) cells
+          reached            — final position after consuming available movement
+          movement_used      — feet spent (rounded to nearest foot)
+          movement_remaining — feet remaining this turn
+          blocked            — True if no path to the target exists
+        """
+        import math as _math
+        if self.position is None:
+            raise RuntimeError(f"{self.name} is not placed on a map.")
+
+        path = map_.find_path(self, x, y, z)
+        if path is None:
+            return {
+                "path": [], "reached": self.position,
+                "movement_used": 0, "movement_remaining": self.speed,
+                "blocked": True,
+            }
+        if not path:
+            return {
+                "path": [], "reached": self.position,
+                "movement_used": 0, "movement_remaining": self.speed,
+                "blocked": False,
+            }
+
+        needs_fly  = any(pz > 0 for _, _, pz in path)
+        needs_swim = any(pz < 0 for _, _, pz in path)
+        if needs_fly:
+            speed_ft = self.flying_speed
+        elif needs_swim:
+            speed_ft = self.swimming_speed
+        else:
+            speed_ft = self.speed + getattr(self, "bonus_speed", 0)
+
+        cost_ft = 0.0
+        prev = self.position
+        final_pos = self.position
+        for cell in path:
+            dims = sum(1 for a, b in zip(prev, cell) if a != b)
+            step_ft = _math.sqrt(dims) * map_.cell_size
+            if cell in map_.difficult_terrain:
+                step_ft *= 2
+            if cost_ft + step_ft > speed_ft:
+                break
+            cost_ft += step_ft
+            final_pos = cell
+            prev = cell
+
+        fx, fy, fz = final_pos
+        map_.move_creature(self, fx, fy, fz)
+        return {
+            "path": path,
+            "reached": final_pos,
+            "movement_used": round(cost_ft),
+            "movement_remaining": round(speed_ft - cost_ft),
+            "blocked": False,
+        }

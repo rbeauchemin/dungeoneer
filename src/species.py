@@ -19,6 +19,7 @@ class Species:
         self.speed = 30
         self.swimming_speed = 15
         self.flying_speed = 0
+        self.climbing_speed = 15
 
     def rest(self, long=False):
         print("Resting...")

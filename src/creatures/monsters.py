@@ -45,9 +45,9 @@ class Monster:
         self.max_hp = kwargs.get("max_hp", 10)
         self.current_hp = self.max_hp
         self.speed = kwargs.get("speed", 30)
-        self.swim_speed = kwargs.get("swim_speed", 0)
-        self.fly_speed = kwargs.get("fly_speed", 0)
-        self.climb_speed = kwargs.get("climb_speed", 0)
+        self.swimming_speed = kwargs.get("swimming_speed", 0)
+        self.flying_speed = kwargs.get("flying_speed", 0)
+        self.climbing_speed = kwargs.get("climbing_speed", 0)
         self.ability_scores = kwargs.get("ability_scores", {
             "Strength": 10, "Dexterity": 10, "Constitution": 10,
             "Intelligence": 10, "Wisdom": 10, "Charisma": 10,
@@ -68,9 +68,11 @@ class Monster:
         self.legendary_actions = kwargs.get("legendary_actions", [])
         self.description = kwargs.get("description", "")
         self.active_effects = []
+        self.position = None   # set by Map.place_creature / Map.move_creature
         self.advantages = dict(_DEFAULT_PARAMS)
         self.disadvantages = dict(_DEFAULT_PARAMS)
         self.auto_fail = dict(_DEFAULT_PARAMS)
+        self.actions_left = 1
 
     # ── Compatibility helpers ───────────────────────────────────────────────
 
@@ -120,6 +122,7 @@ class Monster:
         hit = total >= target_ac or roll == 20
         crit = roll == 20
         miss = roll == 1
+        self.actions_left -= 1
 
         if miss:
             print(f"Critical miss! Roll: {roll}")
@@ -145,6 +148,84 @@ class Monster:
                 target.add_condition("Dead" if lethal else "Unconscious")
         else:
             print(f"Miss! Roll: {total} vs AC {target_ac}")
+
+    def move(self, map_, x: int, y: int, z: int = 0) -> dict:
+        """Move toward (x, y, z) using A* pathfinding.
+
+        Step costs follow the Pythagorean theorem — moving through d axes costs
+        sqrt(d) feet of movement per cell_size (e.g. pure cardinal = 1x cell,
+        diagonal = √2 x cell, full 3-D diagonal = √3 x cell). Difficult terrain
+        doubles each step's cost.
+
+        The correct speed pool is chosen automatically:
+          - any step with z > 0  → flying_speed
+          - any step with z < 0  → swimming_speed
+          - otherwise            → speed (walking) + bonus_speed if set
+
+        Returns a dict:
+          path              — full planned path as list of (x, y, z) cells
+          reached           — final position after consuming available movement
+          movement_used     — feet spent (rounded to nearest foot)
+          movement_remaining — feet remaining this turn
+          blocked           — True if no path to the target exists
+        """
+        import math as _math
+        if self.position is None:
+            raise RuntimeError(f"{self.name} is not placed on a map.")
+
+        path = map_.find_path(self, x, y, z)
+        if path is None:
+            return {
+                "path": [], "reached": self.position,
+                "movement_used": 0, "movement_remaining": self.speed,
+                "blocked": True,
+            }
+        if not path:
+            return {
+                "path": [], "reached": self.position,
+                "movement_used": 0, "movement_remaining": self.speed,
+                "blocked": False,
+            }
+
+        needs_fly  = any(pz > 0 for _, _, pz in path)
+        needs_swim = any(pz < 0 for _, _, pz in path)
+        if needs_fly:
+            speed_ft = self.flying_speed
+        elif needs_swim:
+            speed_ft = self.swimming_speed
+        else:
+            speed_ft = self.speed + getattr(self, "bonus_speed", 0)
+
+        cost_ft = 0.0
+        prev = self.position
+        final_pos = self.position
+        for cell in path:
+            dims = sum(1 for a, b in zip(prev, cell) if a != b)
+            step_ft = _math.sqrt(dims) * map_.cell_size
+            if cell in map_.difficult_terrain:
+                step_ft *= 2
+            if cost_ft + step_ft > speed_ft:
+                break
+            cost_ft += step_ft
+            final_pos = cell
+            prev = cell
+
+        fx, fy, fz = final_pos
+        map_.move_creature(self, fx, fy, fz)
+        return {
+            "path": path,
+            "reached": final_pos,
+            "movement_used": round(cost_ft),
+            "movement_remaining": round(speed_ft - cost_ft),
+            "blocked": False,
+        }
+
+    def dash(self):
+        if self.actions_left <= 0:
+            print(f"{self.name} has no actions left to dash.")
+            return
+        self.actions_left -= 1
+        self.bonus_speed = max([self.speed, self.swimming_speed, self.flying_speed, self.climbing_speed])
 
     def __repr__(self):
         return f"<{self.__class__.__name__} name={self.name!r} CR={self.cr} HP={self.current_hp}/{self.max_hp}>"
@@ -203,7 +284,7 @@ class Rat(Monster):
             name=kwargs.pop("name", "Rat"),
             size="Tiny", type="Beast", alignment="Unaligned",
             cr=0, ac=10, max_hp=1,
-            speed=20, swim_speed=20,
+            speed=20, swimming_speed=20,
             ability_scores={"Strength": 2, "Dexterity": 11, "Constitution": 9,
                             "Intelligence": 2, "Wisdom": 10, "Charisma": 4},
             senses={"Darkvision": 30, "Passive Perception": 10},
@@ -219,7 +300,7 @@ class Bat(Monster):
             name=kwargs.pop("name", "Bat"),
             size="Tiny", type="Beast", alignment="Unaligned",
             cr=0, ac=12, max_hp=1,
-            speed=5, fly_speed=30,
+            speed=5, flying_speed=30,
             ability_scores={"Strength": 2, "Dexterity": 15, "Constitution": 8,
                             "Intelligence": 2, "Wisdom": 12, "Charisma": 4},
             senses={"Blindsight": 60, "Passive Perception": 11},
@@ -236,7 +317,7 @@ class Cat(Monster):
             name=kwargs.pop("name", "Cat"),
             size="Tiny", type="Beast", alignment="Unaligned",
             cr=0, ac=12, max_hp=2,
-            speed=40, climb_speed=30,
+            speed=40, climbing_speed=30,
             ability_scores={"Strength": 3, "Dexterity": 15, "Constitution": 10,
                             "Intelligence": 3, "Wisdom": 12, "Charisma": 7},
             skill_proficiencies={"Perception": 3, "Stealth": 4},
@@ -309,7 +390,7 @@ class Stirge(Monster):
             name=kwargs.pop("name", "Stirge"),
             size="Tiny", type="Beast", alignment="Unaligned",
             cr=0.125, ac=14, max_hp=2,
-            speed=10, fly_speed=40,
+            speed=10, flying_speed=40,
             ability_scores={"Strength": 4, "Dexterity": 16, "Constitution": 11,
                             "Intelligence": 2, "Wisdom": 8, "Charisma": 6},
             senses={"Darkvision": 60, "Passive Perception": 9},
@@ -407,7 +488,7 @@ class PoisonousSnake(Monster):
             name=kwargs.pop("name", "Poisonous Snake"),
             size="Tiny", type="Beast", alignment="Unaligned",
             cr=0.125, ac=13, max_hp=2,
-            speed=30, swim_speed=30,
+            speed=30, swimming_speed=30,
             ability_scores={"Strength": 2, "Dexterity": 16, "Constitution": 11,
                             "Intelligence": 1, "Wisdom": 10, "Charisma": 3},
             senses={"Blindsight": 10, "Passive Perception": 10},
@@ -554,7 +635,7 @@ class Harpy(Monster):
             name=kwargs.pop("name", "Harpy"),
             size="Medium", type="Monstrosity", alignment="Chaotic Evil",
             cr=1, ac=11, max_hp=38,
-            speed=20, fly_speed=40,
+            speed=20, flying_speed=40,
             ability_scores={"Strength": 12, "Dexterity": 13, "Constitution": 12,
                             "Intelligence": 7, "Wisdom": 10, "Charisma": 13},
             senses={"Passive Perception": 10},
@@ -596,7 +677,7 @@ class GiantSpider(Monster):
             name=kwargs.pop("name", "Giant Spider"),
             size="Large", type="Beast", alignment="Unaligned",
             cr=1, ac=14, max_hp=26,
-            speed=30, climb_speed=30,
+            speed=30, climbing_speed=30,
             ability_scores={"Strength": 14, "Dexterity": 16, "Constitution": 12,
                             "Intelligence": 2, "Wisdom": 11, "Charisma": 4},
             skill_proficiencies={"Stealth": 7},
@@ -620,7 +701,7 @@ class SeaHag(Monster):
             name=kwargs.pop("name", "Sea Hag"),
             size="Medium", type="Fey", alignment="Chaotic Evil",
             cr=2, ac=14, max_hp=52,
-            speed=30, swim_speed=40,
+            speed=30, swimming_speed=40,
             ability_scores={"Strength": 16, "Dexterity": 13, "Constitution": 16,
                             "Intelligence": 12, "Wisdom": 12, "Charisma": 13},
             senses={"Darkvision": 60, "Passive Perception": 11},
@@ -640,7 +721,7 @@ class Manticore(Monster):
             name=kwargs.pop("name", "Manticore"),
             size="Large", type="Monstrosity", alignment="Lawful Evil",
             cr=3, ac=14, max_hp=68,
-            speed=30, fly_speed=50,
+            speed=30, flying_speed=50,
             ability_scores={"Strength": 17, "Dexterity": 16, "Constitution": 17,
                             "Intelligence": 7, "Wisdom": 12, "Charisma": 8},
             senses={"Darkvision": 60, "Passive Perception": 11},
@@ -719,7 +800,7 @@ class Banshee(Monster):
             name=kwargs.pop("name", "Banshee"),
             size="Medium", type="Undead", alignment="Chaotic Evil",
             cr=4, ac=12, max_hp=58,
-            speed=0, fly_speed=40,
+            speed=0, flying_speed=40,
             ability_scores={"Strength": 1, "Dexterity": 14, "Constitution": 10,
                             "Intelligence": 12, "Wisdom": 11, "Charisma": 17},
             saving_throw_proficiencies=["Wisdom", "Charisma"],
@@ -817,7 +898,7 @@ class VampireSpawn(Monster):
             name=kwargs.pop("name", "Vampire Spawn"),
             size="Medium", type="Undead", alignment="Neutral Evil",
             cr=5, ac=15, max_hp=82,
-            speed=30, climb_speed=30,
+            speed=30, climbing_speed=30,
             ability_scores={"Strength": 16, "Dexterity": 16, "Constitution": 16,
                             "Intelligence": 11, "Wisdom": 10, "Charisma": 12},
             saving_throw_proficiencies=["Dexterity", "Wisdom"],
@@ -876,7 +957,7 @@ class CloudGiant(Monster):
             name=kwargs.pop("name", "Cloud Giant"),
             size="Huge", type="Giant", alignment="Neutral Good or Neutral Evil",
             cr=9, ac=14, max_hp=200,
-            speed=40, fly_speed=0,
+            speed=40, flying_speed=0,
             ability_scores={"Strength": 27, "Dexterity": 10, "Constitution": 22,
                             "Intelligence": 12, "Wisdom": 16, "Charisma": 16},
             saving_throw_proficiencies=["Constitution", "Wisdom", "Charisma"],
@@ -902,7 +983,7 @@ class Vampire(Monster):
             name=kwargs.pop("name", "Vampire"),
             size="Medium", type="Undead", alignment="Lawful Evil",
             cr=13, ac=16, max_hp=144,
-            speed=30, climb_speed=30,
+            speed=30, climbing_speed=30,
             ability_scores={"Strength": 18, "Dexterity": 18, "Constitution": 18,
                             "Intelligence": 17, "Wisdom": 15, "Charisma": 18},
             saving_throw_proficiencies=["Dexterity", "Wisdom", "Charisma"],
@@ -940,7 +1021,7 @@ class AdultRedDragon(Monster):
             name=kwargs.pop("name", "Adult Red Dragon"),
             size="Huge", type="Dragon", alignment="Chaotic Evil",
             cr=17, ac=19, max_hp=256,
-            speed=40, climb_speed=40, fly_speed=80,
+            speed=40, climbing_speed=40, flying_speed=80,
             ability_scores={"Strength": 27, "Dexterity": 10, "Constitution": 25,
                             "Intelligence": 16, "Wisdom": 13, "Charisma": 21},
             saving_throw_proficiencies=["Dexterity", "Constitution", "Wisdom", "Charisma"],
@@ -1013,7 +1094,7 @@ class AncientRedDragon(Monster):
             name=kwargs.pop("name", "Ancient Red Dragon"),
             size="Gargantuan", type="Dragon", alignment="Chaotic Evil",
             cr=24, ac=22, max_hp=546,
-            speed=40, climb_speed=40, fly_speed=80,
+            speed=40, climbing_speed=40, flying_speed=80,
             ability_scores={"Strength": 30, "Dexterity": 10, "Constitution": 29,
                             "Intelligence": 18, "Wisdom": 15, "Charisma": 23},
             saving_throw_proficiencies=["Dexterity", "Constitution", "Wisdom", "Charisma"],
