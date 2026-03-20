@@ -164,7 +164,7 @@ class Character:
             return
         elif isinstance(condition, str):
             for active_effect in self.active_effects:
-                if clean_text(condition).lower() == clean_text(active_effect.name).lower():
+                if clean_text(condition).lower() == clean_text(active_effect).lower():
                     active_effect.remove(self)
         else:
             for active_effect in self.active_effects:
