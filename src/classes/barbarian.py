@@ -34,7 +34,7 @@ class Barbarian(Class):
         rage_condition = Condition(
             name="Rage",
             description="While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to bludgeoning, piercing, and slashing damage.",
-            duration=1
+            duration=10  # 1 minute = 10 rounds; also ends early via rage-end check in combat
         )
         rage_condition.bonus_resistances = ["Bludgeoning", "Piercing", "Slashing"]
         rage_condition.bonus_damage = 2 if self.level < 9 else 3 if self.level < 16 else 4
