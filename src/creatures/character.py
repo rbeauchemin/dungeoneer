@@ -4,14 +4,16 @@ from typing import Optional
 from src.common import roll_dice_discard_lowest, roll_dice, handle_roll_criticals, dnd_skills, clean_text
 
 
-default_params = {
-    "Saving Throws": [],
-    "Skills": [],
-    "Abilities": [],
-    "Attack": 0,
-    "ToBeAttacked": 0,
-    "Initiative": 0
-}
+def _fresh_adv_dict():
+    """Return a fresh per-instance advantages/disadvantages/auto_fail dict."""
+    return {
+        "Saving Throws": [],
+        "Skills": [],
+        "Abilities": [],
+        "Attack": 0,
+        "ToBeAttacked": 0,
+        "Initiative": 0,
+    }
 
 
 class Character:
@@ -21,7 +23,6 @@ class Character:
         self.name = name
         self.description = description
         self.gold = 0
-        self.d20_modifier = 0
         self.active_effects = []
         self.position = None   # set by Map.place_creature / Map.move_creature
         self.inventory = []
@@ -47,9 +48,9 @@ class Character:
             "Skills": [],
             "Special": []
         }
-        self.advantages = kwargs['advantages'] if "advantages" in kwargs else default_params
-        self.disadvantages = kwargs['disadvantages'] if "disadvantages" in kwargs else default_params
-        self.auto_fail = kwargs['auto_fail'] if 'auto_fail' in kwargs else default_params
+        self._base_advantages = dict(kwargs["advantages"]) if "advantages" in kwargs else _fresh_adv_dict()
+        self._base_disadvantages = dict(kwargs["disadvantages"]) if "disadvantages" in kwargs else _fresh_adv_dict()
+        self._base_auto_fail = dict(kwargs["auto_fail"]) if "auto_fail" in kwargs else _fresh_adv_dict()
         # SET ALL SPECIES ATTRIBUTES
         if isinstance(species, str):
             try:
@@ -61,16 +62,15 @@ class Character:
         self.todo += self.species.todo
         self.description += " " if self.description else "" + self.species.description
         self.size = self.species.size
-        self.weight = self.species.weight
-        self.speed = self.species.speed
+        self._base_weight = self.species.weight
+        self._base_speed = self.species.speed
         self.swimming_speed = self.species.swimming_speed
         self.flying_speed = self.species.flying_speed
-        self.climbing_speed = getattr(self.species, "climbing_speed", 0)
         self.climbing_speed = self.species.climbing_speed
         self.spells = self.species.spells
         self.spells += spells
-        self.resistances = self.species.resistances
-        self.immunities = self.species.immunities
+        self._base_resistances = list(self.species.resistances)
+        self._base_immunities = list(self.species.immunities)
         self.vision = self.species.vision
         self.full_rest_hours = self.species.full_rest_hours
         self.special_abilities = self.species.special_abilities
@@ -113,7 +113,7 @@ class Character:
         # TODO: Handle traits, resistances, proficiencies, special abilities
         self.description = self.description + " " + description
         self.species.ability_scores = self.ability_scores
-        self.species.advantages = self.advantages
+        self.species.advantages = self._base_advantages
         self.spellcasting_ability = self.classes[0].spellcasting_ability if self.classes else "None"
         self.weapon_mastery = []
         self.actions_left = 1
@@ -122,6 +122,130 @@ class Character:
 
     def __str__(self):
         return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.inventory)}"
+
+    # ── Computed stat properties ─────────────────────────────────────────────
+
+    @property
+    def speed(self) -> int:
+        """Effective walking speed in feet, derived from base speed and active conditions.
+
+        Any condition with speed_override set forces the result to that value (0
+        for all standard conditions like Grappled, Paralyzed, etc.).  Speed
+        bonuses from Dash (bonus_speed) are included here so that zero-override
+        conditions correctly suppress them.
+        """
+        for e in self.active_effects:
+            if getattr(e, "speed_override", None) is not None:
+                return 0
+        s = self._base_speed + getattr(self, "bonus_speed", 0)
+        for e in self.active_effects:
+            s += getattr(e, "speed_delta", 0)
+        return max(0, s)
+
+    @property
+    def d20_modifier(self) -> int:
+        """Flat modifier applied to every d20 roll, derived from active conditions."""
+        mod = 0
+        for e in self.active_effects:
+            mod += getattr(e, "d20_delta", 0)
+        return mod
+
+    @property
+    def advantages(self) -> dict:
+        """Effective advantages dict merged from base values and active conditions."""
+        result = {
+            "Saving Throws": list(self._base_advantages.get("Saving Throws", [])),
+            "Skills": list(self._base_advantages.get("Skills", [])),
+            "Abilities": list(self._base_advantages.get("Abilities", [])),
+            "Attack": self._base_advantages.get("Attack", 0),
+            "ToBeAttacked": self._base_advantages.get("ToBeAttacked", 0),
+            "Initiative": self._base_advantages.get("Initiative", 0),
+        }
+        for e in self.active_effects:
+            result["Attack"] += getattr(e, "adv_attack", 0)
+            result["ToBeAttacked"] += getattr(e, "adv_to_be_attacked", 0)
+            result["Initiative"] += getattr(e, "adv_initiative", 0)
+            for item in getattr(e, "adv_saving_throws", ()):
+                if item not in result["Saving Throws"]:
+                    result["Saving Throws"].append(item)
+            for item in getattr(e, "adv_skills", ()):
+                if item not in result["Skills"]:
+                    result["Skills"].append(item)
+            for item in getattr(e, "adv_abilities", ()):
+                if item not in result["Abilities"]:
+                    result["Abilities"].append(item)
+        return result
+
+    @property
+    def disadvantages(self) -> dict:
+        """Effective disadvantages dict merged from base values and active conditions."""
+        result = {
+            "Saving Throws": list(self._base_disadvantages.get("Saving Throws", [])),
+            "Skills": list(self._base_disadvantages.get("Skills", [])),
+            "Abilities": list(self._base_disadvantages.get("Abilities", [])),
+            "Attack": self._base_disadvantages.get("Attack", 0),
+            "ToBeAttacked": self._base_disadvantages.get("ToBeAttacked", 0),
+            "Initiative": self._base_disadvantages.get("Initiative", 0),
+        }
+        for e in self.active_effects:
+            result["Attack"] += getattr(e, "disadv_attack", 0)
+            result["ToBeAttacked"] += getattr(e, "disadv_to_be_attacked", 0)
+            result["Initiative"] += getattr(e, "disadv_initiative", 0)
+            for item in getattr(e, "disadv_saving_throws", ()):
+                if item not in result["Saving Throws"]:
+                    result["Saving Throws"].append(item)
+            for item in getattr(e, "disadv_skills", ()):
+                if item not in result["Skills"]:
+                    result["Skills"].append(item)
+            for item in getattr(e, "disadv_abilities", ()):
+                if item not in result["Abilities"]:
+                    result["Abilities"].append(item)
+        return result
+
+    @property
+    def auto_fail(self) -> dict:
+        """Effective auto-fail dict merged from base values and active conditions."""
+        result = {
+            "Saving Throws": list(self._base_auto_fail.get("Saving Throws", [])),
+            "Skills": list(self._base_auto_fail.get("Skills", [])),
+            "Abilities": list(self._base_auto_fail.get("Abilities", [])),
+            "Attack": self._base_auto_fail.get("Attack", 0),
+            "ToBeAttacked": self._base_auto_fail.get("ToBeAttacked", 0),
+            "Initiative": self._base_auto_fail.get("Initiative", 0),
+        }
+        for e in self.active_effects:
+            for ability in getattr(e, "auto_fail_saving_throws", ()):
+                if ability not in result["Saving Throws"]:
+                    result["Saving Throws"].append(ability)
+        return result
+
+    @property
+    def resistances(self) -> list:
+        """Effective damage resistances merged from base and active conditions."""
+        result = list(self._base_resistances)
+        for e in self.active_effects:
+            for dtype in getattr(e, "bonus_resistances", ()):
+                if dtype not in result:
+                    result.append(dtype)
+        return result
+
+    @property
+    def immunities(self) -> list:
+        """Effective damage immunities merged from base and active conditions."""
+        result = list(self._base_immunities)
+        for e in self.active_effects:
+            for dtype in getattr(e, "bonus_immunities", ()):
+                if dtype not in result:
+                    result.append(dtype)
+        return result
+
+    @property
+    def weight(self) -> float:
+        """Effective weight, multiplied by any active condition weight_multipliers."""
+        w = self._base_weight
+        for e in self.active_effects:
+            w *= getattr(e, "weight_multiplier", 1)
+        return w
 
     def level_up(self, class_):
         from src.classes import Class
@@ -162,14 +286,11 @@ class Character:
             for c in condition:
                 self.remove_condition(c)
             return
-        elif isinstance(condition, str):
-            for active_effect in self.active_effects:
-                if clean_text(condition).lower() == clean_text(active_effect).lower():
-                    active_effect.remove(self)
-        else:
-            for active_effect in self.active_effects:
-                if clean_text(condition.name).lower() == clean_text(active_effect.name).lower():
-                    active_effect.remove(self)
+        name = condition if isinstance(condition, str) else condition.name
+        for active_effect in list(self.active_effects):
+            if clean_text(getattr(active_effect, "name", "")).lower() == clean_text(name).lower():
+                active_effect.remove(self)
+                break
 
     def add_item(self, item, purchasing=False, quantity: int = 1):
         if isinstance(item, list):
@@ -369,10 +490,13 @@ class Character:
             target.add_condition("Unconscious")
 
     def cast_spell(self, spell, targets=[]):
-        charmed_by = [_.by for _ in self.active_effects if _.name == "Charmed"]
+        if any(getattr(e, "prevents_casting", False) for e in self.active_effects):
+            print(f"{self.name} cannot cast spells right now.")
+            return
+        charmed_by = [_.by for _ in self.active_effects if getattr(_, "name", None) == "Charmed"]
         for charmer in charmed_by:
             if charmer in targets:
-                print(f"{charmed_by.name} cannot be targeted due to charm.")
+                print(f"{charmer.name} cannot be targeted due to charm.")
                 return
         for s in self.spells:
             if s.name == spell:
@@ -417,16 +541,15 @@ class Character:
                 print("No actions left to dash.")
                 return
             self.actions_left -= 1
-        self.bonus_speed = max([self.speed, self.swimming_speed, self.flying_speed, self.climbing_speed])
+        self.bonus_speed = max([self._base_speed, self.swimming_speed, self.flying_speed, self.climbing_speed])
 
     def roll_check(self, ability, beat=None, bonus=0, check_type=None, advantage_counter=0, critical_threshold: int = 20, failure_threshold: int = 1, tie_succeeds: bool = True):
         # check type can be ["Abilities", "Saving Throws", "Skills", "Attack", "Initiative"]
+        auto_fail = False
         if isinstance(self.auto_fail[check_type], list):
-            for f in self.auto_fail[check_type]:
-                if f == ability:
-                    auto_fail = True
+            auto_fail = ability in self.auto_fail[check_type]
         else:
-            auto_fail = self.auto_fail[check_type]
+            auto_fail = bool(self.auto_fail[check_type])
         if auto_fail:
             return False, 0, False, False
         roll = roll_dice(1, 20)
@@ -519,7 +642,8 @@ class Character:
         elif needs_swim:
             speed_ft = self.swimming_speed
         else:
-            speed_ft = self.speed + getattr(self, "bonus_speed", 0)
+            # self.speed already incorporates bonus_speed and condition overrides
+            speed_ft = self.speed
 
         cost_ft = 0.0
         prev = self.position

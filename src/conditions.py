@@ -1,103 +1,123 @@
 from typing import List, Optional
 from src.creatures import Character
-from src.common import damage_types, dnd_skills
 
 
 class Condition:
     """Base condition class.
 
-    Subclasses should override `apply` and `remove` to change a Character's
-    traits. Each Condition instance stores any previous state it changes in
-    `_prev_state` so `remove` can restore it.
+    Subclasses declare their stat contributions as class or instance attributes.
+    Creature computed properties (speed, advantages, etc.) read these to derive
+    effective values — conditions no longer mutate stats directly.
+
+    Stat descriptor defaults (override in subclasses):
+      speed_override          — if not None, forces effective speed to this value
+      speed_delta             — feet added to speed (negative = penalty)
+      d20_delta               — modifier added to all d20 rolls
+      adv_attack              — advantage stacks on this creature's attack rolls
+      disadv_attack           — disadvantage stacks on attack rolls
+      adv_to_be_attacked      — advantage stacks on rolls made against this creature
+      disadv_to_be_attacked   — disadvantage stacks on rolls made against this creature
+      adv_initiative          — advantage stacks on initiative
+      disadv_initiative       — disadvantage stacks on initiative
+      adv_abilities           — tuple of ability names granted advantage
+      disadv_abilities        — tuple of ability names given disadvantage
+      adv_skills              — tuple of skill names granted advantage
+      disadv_skills           — tuple of skill names given disadvantage
+      adv_saving_throws       — tuple of ability names granted saving throw advantage
+      disadv_saving_throws    — tuple of ability names given saving throw disadvantage
+      auto_fail_saving_throws — tuple of ability names that auto-fail saving throws
+      bonus_resistances       — tuple of damage types added as resistances
+      bonus_immunities        — tuple of damage types added as immunities
+      weight_multiplier       — multiplied onto the creature's base weight
+      prevents_casting        — True blocks cast_spell()
     """
+
+    speed_override = None
+    speed_delta = 0
+    d20_delta = 0
+    adv_attack = 0
+    disadv_attack = 0
+    adv_to_be_attacked = 0
+    disadv_to_be_attacked = 0
+    adv_initiative = 0
+    disadv_initiative = 0
+    adv_abilities = ()
+    disadv_abilities = ()
+    adv_skills = ()
+    disadv_skills = ()
+    adv_saving_throws = ()
+    disadv_saving_throws = ()
+    auto_fail_saving_throws = ()
+    bonus_resistances = ()
+    bonus_immunities = ()
+    weight_multiplier = 1
+    prevents_casting = False
 
     def __init__(self, name: str, description: str = "", duration: Optional[int] = None):
         self.name = name
         self.description = description
         # duration in rounds; None means indefinite
         self.duration = duration
-        # store previous values here for restoration
-        self._prev_state = {}
 
     def apply(self, character: Character):
-        """Apply the condition to `character`.
-
-        This method should be idempotent: applying twice should not stack
-        duplicate effects.
-        """
-        if self.name in character.active_effects:
+        """Add this condition to the creature's active_effects (idempotent)."""
+        if any(getattr(e, "name", None) == self.name for e in character.active_effects):
             return
         character.active_effects.append(self)
 
     def remove(self, character: Character):
-        """Remove the condition and restore prior character state."""
-        if self.name in character.active_effects:
-            character.active_effects = [e for e in character.active_effects if e.name != self.name]
-        # subclasses should restore additional state using `_prev_state`
+        """Remove this condition from the creature's active_effects."""
+        character.active_effects = [
+            e for e in character.active_effects
+            if getattr(e, "name", None) != self.name
+        ]
 
 
-# Helper functions
-
-def _add_unique(lst: List, val):
-    if val not in lst:
-        lst.append(val)
-
-
-def _remove_safe(lst: List, val):
-    if val in lst:
-        lst.remove(val)
-
-
-# Concrete conditions
+# ── Concrete conditions ─────────────────────────────────────────────────────
 
 class Blinded(Condition):
+    """Can't see. Attacks have disadvantage; attacks against you have advantage."""
+    disadv_attack = 1
+    adv_to_be_attacked = 1
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Blinded", "Can't see. Attack rolls have disadvantage; attacks against you have advantage; automatically fail checks that require sight.", duration)
-
-    def apply(self, character: Character):
-        # Attack rolls have disadvantage
-        character.disadvantages["Attack"] = character.disadvantages.get("Attack", 0) + 1
-        # Attacks against this character have advantage
-        character.advantages["ToBeAttacked"] = character.advantages.get("ToBeAttacked", 0) + 1
-        # record what we changed
-        self._prev_state["disadv_attack_added"] = 1
-        self._prev_state["adv_to_be_attacked_added"] = 1
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if self._prev_state.get("disadv_attack_added"):
-            character.disadvantages["Attack"] = max(0, character.disadvantages.get("Attack", 0) - 1)
-        if self._prev_state.get("adv_to_be_attacked_added"):
-            character.advantages["ToBeAttacked"] = max(0, character.advantages.get("ToBeAttacked", 0) - 1)
-        super().remove(character)
+        super().__init__(
+            "Blinded",
+            "Can't see. Attack rolls have disadvantage; attacks against you have advantage; "
+            "automatically fail checks that require sight.",
+            duration,
+        )
 
 
 class Charmed(Condition):
+    """Can't attack the charmer; charmer has advantage on social checks."""
+
     def __init__(self, duration: Optional[int] = None, by: Optional[Character] = None):
-        super().__init__("Charmed", "Can't attack the charmer with damaging abilities or magical effects. The charmer has advantage on any ability check to interact with the affected character socially.")
+        super().__init__(
+            "Charmed",
+            "Can't attack the charmer with damaging abilities or magical effects. "
+            "The charmer has advantage on any ability check to interact socially.",
+            duration,
+        )
         self.by = by
-
-    def apply(self, character: Character):
-        super().apply(character)
-        # TODO: Add character-specific interaction effect in the dice roll if the roll is social
-
-    def remove(self, character: Character):
-        super().remove(character)
 
 
 class Charming(Condition):
+    """Paired condition placed on the creature doing the charming."""
+
     def __init__(self, duration: Optional[int] = None, who: Optional[Character] = None):
-        super().__init__("Charming", "The character that this character is charming cannot attack them. This character has advantage on social rolls against the target character.")
+        super().__init__(
+            "Charming",
+            "The character this creature is charming cannot attack them. "
+            "This creature has advantage on social rolls against the target.",
+            duration,
+        )
         self.who = who
-
-    def apply(self, character: Character):
-        super().apply(character)
-
-    def remove(self, character: Character):
-        super().remove(character)
 
 
 class Dead(Condition):
+    """This character is dead."""
+
     def __init__(self, duration: Optional[int] = None):
         super().__init__("Dead", "This character is dead. Only magic such as Revivify can bring them back.")
 
@@ -113,453 +133,286 @@ class Dead(Condition):
 
 
 class Deafened(Condition):
+    """Can't hear; automatically fail checks requiring hearing."""
+    disadv_skills = ("Perception",)
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Deafened", "Can't hear. Automatically fail checks that require hearing.", duration)
-        # TODO Add side benefit: Automatically succeed against Vicious Mockery, Suggestion, Dissonant Whispers, Command, Compulsion, Enthrall, and Divine Word
-
-    def apply(self, character: Character):
-        # TODO: This is just a placeholder for now. Need to make these all checks that require hearing and for instant fail instead of disadvantage
-        _add_unique(character.disadvantages.setdefault("Skills", []), "Perception")
-        self._prev_state["added_perception_disadv"] = True
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if self._prev_state.get("added_perception_disadv"):
-            _remove_safe(character.disadvantages.setdefault("Skills", []), "Perception")
-        super().remove(character)
+        super().__init__(
+            "Deafened",
+            "Can't hear. Automatically fail checks that require hearing.",
+            duration,
+        )
 
 
 class Exhaustion(Condition):
+    """Cumulative condition. Each application adds one level (max 6 = death)."""
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Exhaustion", "This condition is cumulative. Each time you receive it, you gain 1 Exhaustion level. You die if your Exhaustion level is 6. Finishing long rests reduces the amount", duration)
+        super().__init__(
+            "Exhaustion",
+            "Cumulative: each level reduces speed by 5 ft and applies -2 to all d20 rolls. "
+            "Level 6 is fatal.",
+            duration,
+        )
         self.level = 0
+        # Instance attributes override the class-level defaults of 0
+        self.speed_delta = 0
+        self.d20_delta = 0
+
+    def _update_deltas(self):
+        self.speed_delta = -5 * self.level
+        self.d20_delta = -2 * self.level
 
     def apply(self, character: Character):
-        # Each application should increment by 1
-        existing_effect = [_ for _ in character.active_effects if _.name == "Exhaustion"]
-        if len(existing_effect) == 1:
-            self.level = existing_effect[0].level
-            character.active_effects = [e for e in character.active_effects if e.name != "Exhaustion"]
-        else:
-            self.level = 0
-        self.increment(character)
+        # Merge with any existing Exhaustion in active_effects
+        existing = next(
+            (e for e in character.active_effects if getattr(e, "name", None) == "Exhaustion"),
+            None,
+        )
+        if existing is not None:
+            character.active_effects.remove(existing)
+            self.level = existing.level
+        self.level += 1
+        self._update_deltas()
+        if self.level >= 6:
+            character.current_hp = 0
+            character.death_saves["Failed"] = 3
+            Dead().apply(character)
+        character.active_effects.append(self)
 
     def remove(self, character: Character):
-        # Each removal should decrement by 1
-        existing_effect = [_ for _ in character.active_effects if _.name == "Exhaustion"]
-        if len(existing_effect) == 1:
-            self.level = existing_effect[0].level
-            character.active_effects = [e for e in character.active_effects if e.name != "Exhaustion"]
-        else:
-            # Nothing to remove
+        # Called on the actual Exhaustion object already in active_effects
+        if self not in character.active_effects:
             return
-        self.decrement(character)
-
-    def increment(self, character: Character):
-        self.level += 1
-        character.speed -= 5
-        character.d20_modifier -= 2
-        if self.level == 6:
-            character.speed += 30
-            character.d20_modifier += 12
-            character.current_hp = 0
-            character.death_saves['Failed'] = 3
-            Dead().apply(character)
-        super().apply(character)
-
-    def decrement(self, character: Character):
+        character.active_effects.remove(self)
         self.level -= 1
-        character.speed += 5
-        character.d20_modifier += 2
-        if self.level == 0:
-            super().remove(character)
-        else:
-            super().apply(character)
+        self._update_deltas()
+        if self.level > 0:
+            character.active_effects.append(self)
 
 
 class Frightened(Condition):
+    """Disadvantage on attacks and ability checks; can't approach the source."""
+    disadv_attack = 1
+    disadv_abilities = (
+        "Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma",
+    )
+
     def __init__(self, duration: Optional[int] = None, by: Optional[Character] = None):
-        super().__init__("Frightened", "Disadvantage on ability checks and attack rolls while the source is in line of sight; can't willingly move closer to the source.", duration)
-
-    def apply(self, character: Character):
-        # Disadvantage on attack rolls
-        character.disadvantages["Attack"] = character.disadvantages.get("Attack", 0) + 1
-        # Disadvantage on all ability checks
-        abilities = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]
-        for a in abilities:
-            _add_unique(character.disadvantages.setdefault("Abilities", []), a)
-        _add_unique(character.active_effects, "Frightened_CannotApproachSource")
-        self._prev_state["disadv_attack_added"] = 1
-        self._prev_state["abilities_added"] = abilities
-        self._prev_state["added_flag"] = True
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if self._prev_state.get("disadv_attack_added"):
-            character.disadvantages["Attack"] = max(0, character.disadvantages.get("Attack", 0) - 1)
-        for a in self._prev_state.get("abilities_added", []):
-            _remove_safe(character.disadvantages.setdefault("Abilities", []), a)
-        if self._prev_state.get("added_flag"):
-            _remove_safe(character.active_effects, "Frightened_CannotApproachSource")
-        super().remove(character)
+        super().__init__(
+            "Frightened",
+            "Disadvantage on ability checks and attack rolls while source is in sight; "
+            "can't willingly move closer to the source.",
+            duration,
+        )
+        self.by = by  # the creature causing the fear (checked for line-of-sight logic)
 
 
 class Grappled(Condition):
+    """Speed becomes 0."""
+    speed_override = 0
+
     def __init__(self, duration: Optional[int] = None, by: Optional[Character] = None):
         super().__init__("Grappled", "Speed becomes 0 while grappled.", duration)
         self.by = by
 
-    def apply(self, character: Character):
-        # store previous speed and set to 0
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed = 0
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        super().remove(character)
-
 
 class Incapacitated(Condition):
+    """Can't take actions or reactions; speed 0; disadvantage on initiative."""
+    speed_override = 0
+    disadv_initiative = 1
+    prevents_casting = True
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Incapacitated", "Can't take actions or reactions.", duration)
-
-    def apply(self, character: Character, speed_handled=False):
-        if not speed_handled:
-            # store previous speed and set to 0
-            self._prev_state["speed"] = getattr(character, "speed", None)
-            character.speed = 0
-        character.disadvantages["Initiative"] += 1
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        super().remove(character)
+        super().__init__(
+            "Incapacitated",
+            "Can't take actions or reactions.",
+            duration,
+        )
 
 
 class Invisible(Condition):
+    """Advantage on attacks; disadvantage on rolls against you."""
+    adv_attack = 1
+    disadv_to_be_attacked = 1
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Invisible", "You are invisible: attack rolls against you have disadvantage; you have advantage on attack rolls.", duration)
-
-    def apply(self, character: Character):
-        # Attacks against have disadvantage: decrement ToBeAttacked advantage
-        character.advantages["ToBeAttacked"] = max(0, character.advantages.get("ToBeAttacked", 0) - 1)
-        # You have advantage on attack rolls
-        character.advantages["Attack"] = character.advantages.get("Attack", 0) + 1
-        self._prev_state["adv_to_be_attacked_decremented"] = 1
-        self._prev_state["adv_attack_added"] = 1
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if self._prev_state.get("adv_to_be_attacked_decremented"):
-            # reversing the earlier decrement: add back one
-            character.advantages["ToBeAttacked"] = character.advantages.get("ToBeAttacked", 0) + 1
-        if self._prev_state.get("adv_attack_added"):
-            character.advantages["Attack"] = max(0, character.advantages.get("Attack", 0) - 1)
-        super().remove(character)
+        super().__init__(
+            "Invisible",
+            "You are invisible: attack rolls against you have disadvantage; "
+            "you have advantage on attack rolls.",
+            duration,
+        )
 
 
 class Paralyzed(Condition):
+    """Incapacitated; speed 0; auto-fail Str/Dex saves; attacks against have advantage and crit within 5 ft."""
+    speed_override = 0
+    disadv_initiative = 1
+    prevents_casting = True
+    auto_fail_saving_throws = ("Strength", "Dexterity")
+    adv_to_be_attacked = 1
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Paralyzed", "Incapacitated, can't move or speak, automatically fail Strength and Dexterity saving throws. Attacks within 5 feet have advantage and any attack that hits is a critical if attacker is within 5 feet.", duration)
-
-    def apply(self, character: Character):
-        Incapacitated().apply(character, speed_handled=True)
-        # store speed
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed = 0
-        for a in ["Strength, Dexterity"]:
-            _add_unique(character.auto_fail.setdefault("Saving Throws", []), a)
-        # Attacks against have advantage
-        character.advantages["ToBeAttacked"] += 1
-        super().apply(character)
-
-    def remove(self, character: Character):
-        character.remove_condition("Incapacitated")
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        for a in ["Strength, Dexterity"]:
-            _remove_safe(character.auto_fail.setdefault("Saving Throws", []), a)
-        character.advantages["ToBeAttacked"] -= 1
-        super().remove(character)
+        super().__init__(
+            "Paralyzed",
+            "Incapacitated, can't move or speak, automatically fail Strength and Dexterity "
+            "saving throws. Attacks within 5 feet have advantage and are critical hits.",
+            duration,
+        )
 
 
 class Petrified(Condition):
-    def __init__(self, duration: int = None):
-        super().__init__("Petrified", "Incapacitated. Speed is 0 and can't increase. Attack rolls against you have advantage. You automatically fail Strength and Dexterity saving throws. You have resistance to all damage. You have immunity to the Poisoned condition.", duration)
+    """Incapacitated; speed 0; auto-fail Str/Dex saves; resistance to all damage; immune to Poison."""
+    speed_override = 0
+    disadv_initiative = 1
+    prevents_casting = True
+    auto_fail_saving_throws = ("Strength", "Dexterity")
+    adv_to_be_attacked = 1
+    bonus_resistances = (
+        "Acid", "Bludgeoning", "Cold", "Fire", "Force", "Lightning",
+        "Necrotic", "Piercing", "Poison", "Psychic", "Radiant", "Slashing", "Thunder",
+    )
+    bonus_immunities = ("Poison",)
+    weight_multiplier = 10
 
-    def apply(self, character: Character):
-        Incapacitated().apply(character, speed_handled=True)
-        character.weight *= 10
-        for item in character.inventory:
-            if hasattr(item, "weight"):
-                item.weight *= 10
-        for item in character.equipped_items:
-            if hasattr(item, "weight"):
-                item.weight *= 10
-
-        # Speed 0 and can't increase
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed = 0
-
-        # Attack rolls against you have Advantage
-        character.advantages["ToBeAttacked"] = character.advantages.get("ToBeAttacked", 0) + 1
-        self._prev_state["adv_to_be_attacked_added"] = 1
-
-        # Automatically fail Strength and Dexterity saving throws
-        for a in ["Strength, Dexterity"]:
-            _add_unique(character.auto_fail.setdefault("Saving Throws", []), a)
-
-        # Resistance to all damage (add all damage types)
-        prev_resistances = []
-        for dtype in damage_types:
-            if dtype not in character.resistances:
-                character.resistances.append(dtype)
-                prev_resistances.append(dtype)
-        self._prev_state["resistances_added"] = prev_resistances
-
-        if "Poison" not in character.immunities:
-            character.immunities.append("Poison")
-            self._prev_state["immunities_added"] = prev_resistances
-        super().apply(character)
-
-    def remove(self, character: Character):
-        character.remove_condition("Incapacitated")
-        character.weight /= 10
-        for item in character.inventory:
-            if hasattr(item, "weight"):
-                item.weight /= 10
-        for item in character.equipped_items:
-            if hasattr(item, "weight"):
-                item.weight /= 10
-
-        # Restore speed
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-
-        # Remove advantage to be attacked
-        if self._prev_state.get("adv_to_be_attacked_added"):
-            character.advantages["ToBeAttacked"] = max(0, character.advantages.get("ToBeAttacked", 0) - 1)
-
-        # Remove saving throw disadvantages
-        for a in ["Strength, Dexterity"]:
-            _remove_safe(character.auto_fail.setdefault("Saving Throws", []), a)
-
-        # Remove damage resistances
-        for dtype in self._prev_state.get("resistances_added", []):
-            _remove_safe(character.resistances, dtype)
-
-        # Remove poison immunity marker
-        for dtype in self._prev_state.get("immunities_added", []):
-            _remove_safe(character.immunities, dtype)
-        super().remove(character)
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Petrified",
+            "Incapacitated. Speed is 0 and can't increase. Attack rolls against you have "
+            "advantage. You automatically fail Strength and Dexterity saving throws. "
+            "Resistance to all damage. Immunity to the Poisoned condition. Weight ×10.",
+            duration,
+        )
 
 
 class Poisoned(Condition):
+    """Disadvantage on attack rolls and all ability checks."""
+    disadv_attack = 1
+    disadv_abilities = (
+        "Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma",
+    )
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Poisoned", "Disadvantage on attack rolls and ability checks.", duration)
-
-    def apply(self, character: Character):
-        # Disadvantage on attack rolls
-        character.disadvantages["Attack"] = character.disadvantages.get("Attack", 0) + 1
-        # Disadvantage on all ability checks
-        abilities = [
-            _ for _ in ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]
-            if _ not in character.disadvantages["Abilities"]
-        ]
-        for a in abilities:
-            _add_unique(character.disadvantages.setdefault("Abilities", []), a)
-        self._prev_state["disadv_attack_added"] = 1
-        self._prev_state["abilities_added"] = abilities
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if self._prev_state.get("disadv_attack_added"):
-            character.disadvantages["Attack"] = max(0, character.disadvantages.get("Attack", 0) - 1)
-        for a in self._prev_state.get("abilities_added", []):
-            _remove_safe(character.disadvantages.setdefault("Abilities", []), a)
-        super().remove(character)
+        super().__init__(
+            "Poisoned",
+            "Disadvantage on attack rolls and ability checks.",
+            duration,
+        )
 
 
 class Prone(Condition):
+    """Attack rolls have disadvantage; melee attacks against you have advantage."""
+    disadv_attack = 1
+    adv_to_be_attacked = 1
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Prone", "You are prone: movement options are limited; attack rolls have disadvantage; melee attacks against you have advantage.", duration)
-
-    def apply(self, character: Character):
-        # Attack rolls disadvantage
-        character.disadvantages["Attack"] = character.disadvantages.get("Attack", 0) + 1
-        # Attacks against this character have advantage
-        # TODO: This is supposed to be only for melee, so we need to refactor ToBeAttacked into range and melee
-        character.advantages["ToBeAttacked"] = character.advantages.get("ToBeAttacked", 0) + 1
-        self._prev_state["disadv_attack_added"] = 1
-        self._prev_state["adv_to_be_attacked_added"] = 1
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if self._prev_state.get("disadv_attack_added"):
-            character.disadvantages["Attack"] = max(0, character.disadvantages.get("Attack", 0) - 1)
-        if self._prev_state.get("adv_to_be_attacked_added"):
-            character.advantages["ToBeAttacked"] = max(0, character.advantages.get("ToBeAttacked", 0) - 1)
-        super().remove(character)
+        super().__init__(
+            "Prone",
+            "You are prone: attack rolls have disadvantage; melee attacks against you have advantage.",
+            duration,
+        )
 
 
 class Restrained(Condition):
+    """Speed 0; attack rolls have disadvantage; attacks against have advantage; Dex saves disadvantage."""
+    speed_override = 0
+    disadv_attack = 1
+    adv_to_be_attacked = 1
+    disadv_saving_throws = ("Dexterity",)
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Restrained", "Speed is 0, cannot benefit from bonuses to speed, attack rolls have disadvantage, attacks against you have advantage; Dexterity saving throws have disadvantage.", duration)
-
-    def apply(self, character: Character):
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed = 0
-        # Attack rolls disadvantage
-        character.disadvantages["Attack"] = character.disadvantages.get("Attack", 0) + 1
-        # Attacks against this character have advantage
-        character.advantages["ToBeAttacked"] = character.advantages.get("ToBeAttacked", 0) + 1
-        # Dex saves disadvantage: track in Abilities
-        if "Dexterity" not in character.disadvantages["Abilities"]:
-            _add_unique(character.disadvantages.setdefault("Abilities", []), "Dexterity")
-            self._prev_state["dex_added"] = True
-        self._prev_state["disadv_attack_added"] = 1
-        self._prev_state["adv_to_be_attacked_added"] = 1
-        super().apply(character)
-
-    def remove(self, character: Character):
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        if self._prev_state.get("disadv_attack_added"):
-            character.disadvantages["Attack"] = max(0, character.disadvantages.get("Attack", 0) - 1)
-        if self._prev_state.get("adv_to_be_attacked_added"):
-            character.advantages["ToBeAttacked"] = max(0, character.advantages.get("ToBeAttacked", 0) - 1)
-        if self._prev_state.get("dex_added"):
-            _remove_safe(character.disadvantages.setdefault("Abilities", []), "Dexterity")
-        super().remove(character)
+        super().__init__(
+            "Restrained",
+            "Speed is 0, cannot benefit from bonuses to speed, attack rolls have disadvantage, "
+            "attacks against you have advantage; Dexterity saving throws have disadvantage.",
+            duration,
+        )
 
 
 class Stunned(Condition):
+    """Incapacitated; speed 0; auto-fail Str/Dex saves; attacks against have advantage."""
+    speed_override = 0
+    disadv_initiative = 1
+    prevents_casting = True
+    disadv_attack = 1
+    auto_fail_saving_throws = ("Strength", "Dexterity")
+    adv_to_be_attacked = 1
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Stunned", "Incapacitated, can't move, can speak, automatically fail Strength and Dexterity saving throws.", duration)
-
-    def apply(self, character: Character):
-        Incapacitated().apply(character, speed_handled=True)
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed = 0
-        # Disadvantage on attacks
-        character.disadvantages["Attack"] = character.disadvantages.get("Attack", 0) + 1
-        self._prev_state["disadv_attack_added"] = 1
-        # Automatically fail Strength and Dexterity saving throws
-        for a in ["Strength, Dexterity"]:
-            _add_unique(character.auto_fail.setdefault("Saving Throws", []), a)
-        super().apply(character)
-
-    def remove(self, character: Character):
-        character.remove_condition("Incapacitated")
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        if self._prev_state.get("disadv_attack_added"):
-            character.disadvantages["Attack"] = max(0, character.disadvantages.get("Attack", 0) - 1)
-        for a in ["Strength, Dexterity"]:
-            _remove_safe(character.auto_fail.setdefault("Saving Throws", []), a)
-        super().remove(character)
+        super().__init__(
+            "Stunned",
+            "Incapacitated, can't move, can speak, automatically fail Strength and Dexterity saving throws.",
+            duration,
+        )
 
 
 class Unconscious(Condition):
+    """Incapacitated + Prone; speed 0; auto-fail Str/Dex saves; attacks against have advantage."""
+    speed_override = 0
+    disadv_initiative = 1
+    prevents_casting = True
+    disadv_attack = 1           # from Prone
+    adv_to_be_attacked = 1      # from Prone
+    auto_fail_saving_throws = ("Strength", "Dexterity")
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Unconscious", "Incapacitated, can't move or speak, drop to 0 hit points, you fall prone.", duration)
-
-    def apply(self, character: Character):
-        Incapacitated().apply(character, speed_handled=True)
-        Prone().apply(character)
-        # drop speed to 0
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed = 0
-        # Automatically fail Strength and Dexterity saving throws
-        for a in ["Strength, Dexterity"]:
-            _add_unique(character.auto_fail.setdefault("Saving Throws", []), a)
-        super().apply(character)
-
-    def remove(self, character: Character):
-        character.remove_condition("Incapacitated")
-        # Note: Prone does not get resolved after
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        for a in ["Strength, Dexterity"]:
-            _remove_safe(character.auto_fail.setdefault("Saving Throws", []), a)
-        super().remove(character)
+        super().__init__(
+            "Unconscious",
+            "Incapacitated, can't move or speak, fall prone.",
+            duration,
+        )
 
 
-# EXTRA EFFECTS
+# ── Equipment-derived conditions ────────────────────────────────────────────
+
 class CannotCast(Condition):
+    """Something is preventing spellcasting."""
+    prevents_casting = True
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Cannot Cast", "Something is causing casting to be impossible at this time.", duration)
+        super().__init__(
+            "Cannot Cast",
+            "Something is causing casting to be impossible at this time.",
+            duration,
+        )
 
 
 class ClunkyArmor(Condition):
+    """Armor is too loud — disadvantage on Stealth."""
+    disadv_skills = ("Stealth",)
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Clunky Armor", "Your armor is too loud and is making it hard to sneak around.", duration)
-
-    def apply(self, character):
-        if "Stealth" not in character.disadvantages["Skills"]:
-            character.disadvantages["Skills"] += ["Stealth"]
-            self._prev_state["disadv_stealth_added"] = True
-        super().apply(character)
-
-    def remove(self, character):
-        if self._prev_state.get("disadv_stealth_added"):
-            _remove_safe(character.disadvantages.setdefault("Skills", []), "Stealth")
-        super().remove(character)
+        super().__init__(
+            "Clunky Armor",
+            "Your armor is too loud and is making it hard to sneak around.",
+            duration,
+        )
 
 
 class ArmorTooHeavy(Condition):
+    """Lacking the strength for this armor — speed –10 ft."""
+    speed_delta = -10
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Armor Too Heavy", "You lack the strength to move effectively in your armor.", duration)
-
-    def apply(self, character):
-        # drop speed to 0
-        self._prev_state["speed"] = getattr(character, "speed", None)
-        character.speed -= 10
-        if character.speed < 0:
-            character.speed = 0
-        super().apply(character)
-
-    def remove(self, character):
-        if "speed" in self._prev_state and self._prev_state["speed"] is not None:
-            character.speed = self._prev_state["speed"]
-        super().remove(character)
+        super().__init__(
+            "Armor Too Heavy",
+            "You lack the strength to move effectively in your armor.",
+            duration,
+        )
 
 
 class ProficiencyGappedArmor(Condition):
+    """Wearing armor without proficiency — can't cast, Str/Dex saves and checks have disadvantage."""
+    prevents_casting = True
+    disadv_saving_throws = ("Strength", "Dexterity")
+    disadv_abilities = ("Strength", "Dexterity")
+    # Strength skill: Athletics. Dexterity skills: Acrobatics, Sleight of Hand, Stealth.
+    disadv_skills = ("Athletics", "Acrobatics", "Sleight of Hand", "Stealth")
+
     def __init__(self, duration: Optional[int] = None):
-        super().__init__("Proficiency Gapped Armor", "You don't know how to navigate in the armor you are wearing.", duration)
-
-    def apply(self, character):
-        CannotCast().apply(character)
-        sts_to_disadv = [
-            _ for _ in ["Strength", "Dexterity"]
-            if _ not in character.disadvantages["Saving Throws"]
-        ]
-        abilities_to_disadv = [
-            _ for _ in ["Strength", "Dexterity"]
-            if _ not in character.disadvantages["Abilities"]
-        ]
-        skills_to_disadv = [
-            _ for _ in [k for k, v in dnd_skills.items() if v in ["Strength", "Dexterity"]]
-            if _ not in character.disadvantages["Skills"]
-        ]
-        character.disadvantages.setdefault("Saving Throws", []).extend(sts_to_disadv)
-        character.disadvantages.setdefault("Abilities", []).extend(abilities_to_disadv)
-        character.disadvantages.setdefault("Skills", []).extend(skills_to_disadv)
-        self._prev_state["sts_to_disadv"] = sts_to_disadv
-        self._prev_state["abilities_to_disadv"] = abilities_to_disadv
-        self._prev_state["skills_to_disadv"] = skills_to_disadv
-        super().apply(character)
-
-    def remove(self, character):
-        character.remove_condition("CannotCast")
-        for sts in self._prev_state["sts_to_disadv"]:
-            _remove_safe(character.disadvantages.setdefault("Saving Throws", []), sts)
-        for a in self._prev_state["abilities_to_disadv"]:
-            _remove_safe(character.disadvantages.setdefault("Abilities", []), a)
-        for s in self._prev_state["skills_to_disadv"]:
-            _remove_safe(character.disadvantages.setdefault("Skills", []), s)
-        super().remove(character)
+        super().__init__(
+            "Proficiency Gapped Armor",
+            "You don't know how to navigate in the armor you are wearing.",
+            duration,
+        )

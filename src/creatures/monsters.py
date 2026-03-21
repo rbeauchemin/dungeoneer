@@ -1,5 +1,45 @@
 import importlib
+import inspect
+import sys
 from src.common import roll_dice
+
+
+def get_monsters(
+        monster_types=None, cr_min=None, cr_max=None, name_contains=None):
+    # Get the current module object
+    current_module = sys.modules[__name__]
+
+    # Get all members of the current module that are classes
+    all_members = inspect.getmembers(current_module, inspect.isclass)
+
+    # Filter out classes that were imported from other modules,
+    # keeping only those defined in the current file.
+    monsters = [
+        (name, cls) for name, cls in all_members
+        if cls.__module__ == current_module.__name__
+    ]
+    if monster_types is not None:
+        monsters = [
+            (name, cls) for name, cls in monsters
+            if getattr(cls, "type", "") in monster_types
+        ]
+    if cr_min is not None:
+        monsters = [
+            (name, cls) for name, cls in monsters
+            if getattr(cls, "cr", 0) >= cr_min
+        ]
+    if cr_max is not None:
+        monsters = [
+            (name, cls) for name, cls in monsters
+            if getattr(cls, "cr", 0) <= cr_max
+        ]
+    if name_contains is not None:
+        monsters = [
+            (name, cls) for name, cls in monsters
+            if name_contains.lower() in name.lower()
+        ]
+
+    return monsters
 
 
 def _proficiency_bonus_for_cr(cr):
@@ -44,7 +84,7 @@ class Monster:
         self._ac_value = kwargs.get("ac", 10)
         self.max_hp = kwargs.get("max_hp", 10)
         self.current_hp = self.max_hp
-        self.speed = kwargs.get("speed", 30)
+        self._base_speed = kwargs.get("speed", 30)
         self.swimming_speed = kwargs.get("swimming_speed", 0)
         self.flying_speed = kwargs.get("flying_speed", 0)
         self.climbing_speed = kwargs.get("climbing_speed", 0)
@@ -55,8 +95,8 @@ class Monster:
         self.proficiency_bonus = _proficiency_bonus_for_cr(self.cr)
         self.saving_throw_proficiencies = kwargs.get("saving_throw_proficiencies", [])
         self.skill_proficiencies = kwargs.get("skill_proficiencies", {})  # {skill: bonus_override}
-        self.resistances = kwargs.get("resistances", [])
-        self.immunities = kwargs.get("immunities", [])
+        self._base_resistances = list(kwargs.get("resistances", []))
+        self._base_immunities = list(kwargs.get("immunities", []))
         self.vulnerabilities = kwargs.get("vulnerabilities", [])
         self.condition_immunities = kwargs.get("condition_immunities", [])
         self.senses = kwargs.get("senses", {})          # e.g. {"Darkvision": 60, "Passive Perception": 11}
@@ -69,10 +109,120 @@ class Monster:
         self.description = kwargs.get("description", "")
         self.active_effects = []
         self.position = None   # set by Map.place_creature / Map.move_creature
-        self.advantages = dict(_DEFAULT_PARAMS)
-        self.disadvantages = dict(_DEFAULT_PARAMS)
-        self.auto_fail = dict(_DEFAULT_PARAMS)
+        self._base_advantages = dict(_DEFAULT_PARAMS)
+        self._base_disadvantages = dict(_DEFAULT_PARAMS)
+        self._base_auto_fail = dict(_DEFAULT_PARAMS)
         self.actions_left = 1
+
+    # ── Computed stat properties ────────────────────────────────────────────
+
+    @property
+    def speed(self) -> int:
+        """Effective walking speed, derived from base speed and active conditions."""
+        for e in self.active_effects:
+            if getattr(e, "speed_override", None) is not None:
+                return 0
+        s = self._base_speed + getattr(self, "bonus_speed", 0)
+        for e in self.active_effects:
+            s += getattr(e, "speed_delta", 0)
+        return max(0, s)
+
+    @property
+    def d20_modifier(self) -> int:
+        """Flat modifier applied to every d20 roll, derived from active conditions."""
+        mod = 0
+        for e in self.active_effects:
+            mod += getattr(e, "d20_delta", 0)
+        return mod
+
+    @property
+    def advantages(self) -> dict:
+        """Effective advantages merged from base values and active conditions."""
+        result = {
+            "Saving Throws": list(self._base_advantages.get("Saving Throws", [])),
+            "Skills": list(self._base_advantages.get("Skills", [])),
+            "Abilities": list(self._base_advantages.get("Abilities", [])),
+            "Attack": self._base_advantages.get("Attack", 0),
+            "ToBeAttacked": self._base_advantages.get("ToBeAttacked", 0),
+            "Initiative": self._base_advantages.get("Initiative", 0),
+        }
+        for e in self.active_effects:
+            result["Attack"] += getattr(e, "adv_attack", 0)
+            result["ToBeAttacked"] += getattr(e, "adv_to_be_attacked", 0)
+            result["Initiative"] += getattr(e, "adv_initiative", 0)
+            for item in getattr(e, "adv_saving_throws", ()):
+                if item not in result["Saving Throws"]:
+                    result["Saving Throws"].append(item)
+            for item in getattr(e, "adv_skills", ()):
+                if item not in result["Skills"]:
+                    result["Skills"].append(item)
+            for item in getattr(e, "adv_abilities", ()):
+                if item not in result["Abilities"]:
+                    result["Abilities"].append(item)
+        return result
+
+    @property
+    def disadvantages(self) -> dict:
+        """Effective disadvantages merged from base values and active conditions."""
+        result = {
+            "Saving Throws": list(self._base_disadvantages.get("Saving Throws", [])),
+            "Skills": list(self._base_disadvantages.get("Skills", [])),
+            "Abilities": list(self._base_disadvantages.get("Abilities", [])),
+            "Attack": self._base_disadvantages.get("Attack", 0),
+            "ToBeAttacked": self._base_disadvantages.get("ToBeAttacked", 0),
+            "Initiative": self._base_disadvantages.get("Initiative", 0),
+        }
+        for e in self.active_effects:
+            result["Attack"] += getattr(e, "disadv_attack", 0)
+            result["ToBeAttacked"] += getattr(e, "disadv_to_be_attacked", 0)
+            result["Initiative"] += getattr(e, "disadv_initiative", 0)
+            for item in getattr(e, "disadv_saving_throws", ()):
+                if item not in result["Saving Throws"]:
+                    result["Saving Throws"].append(item)
+            for item in getattr(e, "disadv_skills", ()):
+                if item not in result["Skills"]:
+                    result["Skills"].append(item)
+            for item in getattr(e, "disadv_abilities", ()):
+                if item not in result["Abilities"]:
+                    result["Abilities"].append(item)
+        return result
+
+    @property
+    def auto_fail(self) -> dict:
+        """Effective auto-fail dict merged from base values and active conditions."""
+        result = {
+            "Saving Throws": list(self._base_auto_fail.get("Saving Throws", [])),
+            "Skills": list(self._base_auto_fail.get("Skills", [])),
+            "Abilities": list(self._base_auto_fail.get("Abilities", [])),
+            "Attack": self._base_auto_fail.get("Attack", 0),
+            "ToBeAttacked": self._base_auto_fail.get("ToBeAttacked", 0),
+            "Initiative": self._base_auto_fail.get("Initiative", 0),
+        }
+        for e in self.active_effects:
+            for ability in getattr(e, "auto_fail_saving_throws", ()):
+                if ability not in result["Saving Throws"]:
+                    result["Saving Throws"].append(ability)
+        return result
+
+    @property
+    def resistances(self) -> list:
+        """Effective damage resistances merged from base and active conditions."""
+        result = list(self._base_resistances)
+        for e in self.active_effects:
+            for dtype in getattr(e, "bonus_resistances", ()):
+                if dtype not in result:
+                    result.append(dtype)
+        return result
+
+    @property
+    def immunities(self) -> list:
+        """Effective damage immunities merged from base and active conditions."""
+        result = list(self._base_immunities)
+        for e in self.active_effects:
+            for dtype in getattr(e, "bonus_immunities", ()):
+                if dtype not in result:
+                    result.append(dtype)
+        return result
 
     # ── Compatibility helpers ───────────────────────────────────────────────
 
@@ -194,7 +344,8 @@ class Monster:
         elif needs_swim:
             speed_ft = self.swimming_speed
         else:
-            speed_ft = self.speed + getattr(self, "bonus_speed", 0)
+            # self.speed already incorporates bonus_speed and condition overrides
+            speed_ft = self.speed
 
         cost_ft = 0.0
         prev = self.position
@@ -225,7 +376,7 @@ class Monster:
             print(f"{self.name} has no actions left to dash.")
             return
         self.actions_left -= 1
-        self.bonus_speed = max([self.speed, self.swimming_speed, self.flying_speed, self.climbing_speed])
+        self.bonus_speed = max([self._base_speed, self.swimming_speed, self.flying_speed, self.climbing_speed])
 
     def __repr__(self):
         return f"<{self.__class__.__name__} name={self.name!r} CR={self.cr} HP={self.current_hp}/{self.max_hp}>"
