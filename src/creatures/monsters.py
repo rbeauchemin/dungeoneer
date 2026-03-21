@@ -284,7 +284,7 @@ class Monster:
                 num *= 2
                 print("Critical hit!")
             damage = roll_dice(num, die) + action.get("damage_bonus", 0)
-            damage_type = action.get("damage_type", "bludgeoning")
+            damage_type = action.get("damage_type", "Bludgeoning")
             print(f"Hit! {self.name} deals {damage} {damage_type} damage.")
             if damage_type in target.resistances:
                 damage //= 2
@@ -430,7 +430,7 @@ class Commoner(Monster):
                             "Intelligence": 10, "Wisdom": 10, "Charisma": 10},
             senses={"Passive Perception": 10},
             languages=["Common"],
-            actions=[{"name": "Club", "attack_bonus": 2, "damage": "1d4", "damage_bonus": 0, "damage_type": "bludgeoning"}],
+            actions=[{"name": "Club", "attack_bonus": 2, "damage": "1d4", "damage_bonus": 0, "damage_type": "Bludgeoning"}],
             **kwargs,
         )
 
@@ -446,7 +446,7 @@ class Rat(Monster):
                             "Intelligence": 2, "Wisdom": 10, "Charisma": 4},
             senses={"Darkvision": 30, "Passive Perception": 10},
             special_abilities=["Keen Smell: Advantage on Perception checks that rely on smell."],
-            actions=[{"name": "Bite", "attack_bonus": 0, "damage": "1d1", "damage_bonus": 0, "damage_type": "piercing"}],
+            actions=[{"name": "Bite", "attack_bonus": 0, "damage": "1d1", "damage_bonus": 0, "damage_type": "Piercing"}],
             **kwargs,
         )
 
@@ -463,7 +463,7 @@ class Bat(Monster):
             senses={"Blindsight": 60, "Passive Perception": 11},
             special_abilities=["Echolocation: Can't use Blindsight while Deafened.",
                                "Keen Hearing: Advantage on Perception checks relying on hearing."],
-            actions=[{"name": "Bite", "attack_bonus": 0, "damage": "1d1", "damage_bonus": 0, "damage_type": "piercing"}],
+            actions=[{"name": "Bite", "attack_bonus": 0, "damage": "1d1", "damage_bonus": 0, "damage_type": "Piercing"}],
             **kwargs,
         )
 
@@ -480,7 +480,7 @@ class Cat(Monster):
             skill_proficiencies={"Perception": 3, "Stealth": 4},
             senses={"Passive Perception": 13},
             special_abilities=["Keen Smell: Advantage on Perception checks that rely on smell."],
-            actions=[{"name": "Claws", "attack_bonus": 0, "damage": "1d1", "damage_bonus": 0, "damage_type": "slashing"}],
+            actions=[{"name": "Claws", "attack_bonus": 0, "damage": "1d1", "damage_bonus": 0, "damage_type": "Slashing"}],
             **kwargs,
         )
 
@@ -499,8 +499,8 @@ class Bandit(Monster):
             senses={"Passive Perception": 10},
             languages=["Common"],
             actions=[
-                {"name": "Scimitar", "attack_bonus": 3, "damage": "1d6", "damage_bonus": 1, "damage_type": "slashing"},
-                {"name": "Light Crossbow", "attack_bonus": 3, "damage": "1d8", "damage_bonus": 1, "damage_type": "piercing"},
+                {"name": "Scimitar", "attack_bonus": 3, "damage": "1d6", "damage_bonus": 1, "damage_type": "Slashing"},
+                {"name": "Light Crossbow", "attack_bonus": 3, "damage": "1d8", "damage_bonus": 1, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -518,7 +518,7 @@ class Guard(Monster):
             skill_proficiencies={"Perception": 2},
             senses={"Passive Perception": 12},
             languages=["Common"],
-            actions=[{"name": "Spear", "attack_bonus": 3, "damage": "1d6", "damage_bonus": 1, "damage_type": "piercing"}],
+            actions=[{"name": "Spear", "attack_bonus": 3, "damage": "1d6", "damage_bonus": 1, "damage_type": "Piercing"}],
             **kwargs,
         )
 
@@ -536,7 +536,7 @@ class Kobold(Monster):
             languages=["Common", "Draconic"],
             special_abilities=["Pack Tactics: Advantage on attack rolls if an ally is adjacent to target and not incapacitated.",
                                "Sunlight Sensitivity: Disadvantage on attack rolls and Perception checks in sunlight."],
-            actions=[{"name": "Dagger", "attack_bonus": 4, "damage": "1d4", "damage_bonus": 2, "damage_type": "piercing"}],
+            actions=[{"name": "Dagger", "attack_bonus": 4, "damage": "1d4", "damage_bonus": 2, "damage_type": "Piercing"}],
             **kwargs,
         )
 
@@ -552,7 +552,7 @@ class Stirge(Monster):
                             "Intelligence": 2, "Wisdom": 8, "Charisma": 6},
             senses={"Darkvision": 60, "Passive Perception": 9},
             special_abilities=["Blood Drain: On hit, attaches and drains 1d4+3 HP per turn. DC 10 Strength to detach."],
-            actions=[{"name": "Blood Drain", "attack_bonus": 5, "damage": "1d4", "damage_bonus": 3, "damage_type": "piercing"}],
+            actions=[{"name": "Blood Drain", "attack_bonus": 5, "damage": "1d4", "damage_bonus": 3, "damage_type": "Piercing"}],
             **kwargs,
         )
 
@@ -573,8 +573,8 @@ class Goblin(Monster):
             languages=["Common", "Goblin"],
             special_abilities=["Nimble Escape: Can Disengage or Hide as a Bonus Action."],
             actions=[
-                {"name": "Scimitar", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "slashing"},
-                {"name": "Shortbow", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "piercing"},
+                {"name": "Scimitar", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "Slashing"},
+                {"name": "Shortbow", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -589,13 +589,13 @@ class Skeleton(Monster):
             speed=30,
             ability_scores={"Strength": 10, "Dexterity": 14, "Constitution": 15,
                             "Intelligence": 6, "Wisdom": 8, "Charisma": 5},
-            vulnerabilities=["bludgeoning"],
-            immunities=["poison"],
+            vulnerabilities=["Bludgeoning"],
+            immunities=["Poison"],
             condition_immunities=["Exhaustion", "Poisoned"],
             senses={"Darkvision": 60, "Passive Perception": 9},
             actions=[
-                {"name": "Shortsword", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "piercing"},
-                {"name": "Shortbow", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "piercing"},
+                {"name": "Shortsword", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "Piercing"},
+                {"name": "Shortbow", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -611,11 +611,11 @@ class Zombie(Monster):
             ability_scores={"Strength": 13, "Dexterity": 6, "Constitution": 16,
                             "Intelligence": 3, "Wisdom": 6, "Charisma": 5},
             saving_throw_proficiencies=["Wisdom"],
-            immunities=["poison"],
+            immunities=["Poison"],
             condition_immunities=["Poisoned"],
             senses={"Darkvision": 60, "Passive Perception": 8},
             special_abilities=["Undead Fortitude: When reduced to 0 HP, DC 5 + damage taken Constitution save to drop to 1 HP instead (not radiant damage or crit)."],
-            actions=[{"name": "Slam", "attack_bonus": 3, "damage": "1d6", "damage_bonus": 1, "damage_type": "bludgeoning"}],
+            actions=[{"name": "Slam", "attack_bonus": 3, "damage": "1d6", "damage_bonus": 1, "damage_type": "Bludgeoning"}],
             **kwargs,
         )
 
@@ -633,7 +633,7 @@ class Wolf(Monster):
             senses={"Passive Perception": 13},
             special_abilities=["Keen Hearing and Smell: Advantage on Perception checks relying on hearing or smell.",
                                "Pack Tactics: Advantage on attack rolls if ally is adjacent to target and not incapacitated."],
-            actions=[{"name": "Bite", "attack_bonus": 4, "damage": "2d4", "damage_bonus": 2, "damage_type": "piercing",
+            actions=[{"name": "Bite", "attack_bonus": 4, "damage": "2d4", "damage_bonus": 2, "damage_type": "Piercing",
                       "notes": "DC 11 Strength or target is knocked Prone."}],
             **kwargs,
         )
@@ -650,7 +650,7 @@ class PoisonousSnake(Monster):
                             "Intelligence": 1, "Wisdom": 10, "Charisma": 3},
             senses={"Blindsight": 10, "Passive Perception": 10},
             special_abilities=["Bite: On hit, target makes DC 10 Con save or takes 2d4 poison damage (half on save)."],
-            actions=[{"name": "Bite", "attack_bonus": 5, "damage": "1d1", "damage_bonus": 0, "damage_type": "piercing",
+            actions=[{"name": "Bite", "attack_bonus": 5, "damage": "1d1", "damage_bonus": 0, "damage_type": "Piercing",
                       "notes": "Plus 2d4 poison damage (DC 10 Con save halves)."}],
             **kwargs,
         )
@@ -671,8 +671,8 @@ class Hobgoblin(Monster):
             languages=["Common", "Goblin"],
             special_abilities=["Martial Advantage: Once per turn, +2d6 damage if an ally is adjacent to target."],
             actions=[
-                {"name": "Longsword", "attack_bonus": 3, "damage": "1d8", "damage_bonus": 1, "damage_type": "slashing"},
-                {"name": "Longbow", "attack_bonus": 3, "damage": "1d8", "damage_bonus": 1, "damage_type": "piercing"},
+                {"name": "Longsword", "attack_bonus": 3, "damage": "1d8", "damage_bonus": 1, "damage_type": "Slashing"},
+                {"name": "Longbow", "attack_bonus": 3, "damage": "1d8", "damage_bonus": 1, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -692,8 +692,8 @@ class Orc(Monster):
             languages=["Common", "Orc"],
             special_abilities=["Aggressive: As a Bonus Action, move up to speed toward a hostile creature."],
             actions=[
-                {"name": "Greataxe", "attack_bonus": 5, "damage": "1d12", "damage_bonus": 3, "damage_type": "slashing"},
-                {"name": "Javelin", "attack_bonus": 5, "damage": "1d6", "damage_bonus": 3, "damage_type": "piercing"},
+                {"name": "Greataxe", "attack_bonus": 5, "damage": "1d12", "damage_bonus": 3, "damage_type": "Slashing"},
+                {"name": "Javelin", "attack_bonus": 5, "damage": "1d6", "damage_bonus": 3, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -714,8 +714,8 @@ class Scout(Monster):
             special_abilities=["Keen Hearing and Sight: Advantage on Perception checks relying on hearing or sight."],
             actions=[
                 {"name": "Multiattack", "notes": "Two Shortsword attacks or two Longbow attacks."},
-                {"name": "Shortsword", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "piercing"},
-                {"name": "Longbow", "attack_bonus": 4, "damage": "1d8", "damage_bonus": 2, "damage_type": "piercing"},
+                {"name": "Shortsword", "attack_bonus": 4, "damage": "1d6", "damage_bonus": 2, "damage_type": "Piercing"},
+                {"name": "Longbow", "attack_bonus": 4, "damage": "1d8", "damage_bonus": 2, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -738,8 +738,8 @@ class Bugbear(Monster):
             special_abilities=["Brute: Melee attacks deal one extra die of damage on hit (included).",
                                "Surprise Attack: +2d6 damage on first attack if target hasn't acted yet."],
             actions=[
-                {"name": "Morningstar", "attack_bonus": 4, "damage": "2d8", "damage_bonus": 2, "damage_type": "piercing"},
-                {"name": "Javelin", "attack_bonus": 4, "damage": "2d6", "damage_bonus": 2, "damage_type": "piercing"},
+                {"name": "Morningstar", "attack_bonus": 4, "damage": "2d8", "damage_bonus": 2, "damage_type": "Piercing"},
+                {"name": "Javelin", "attack_bonus": 4, "damage": "2d6", "damage_bonus": 2, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -758,7 +758,7 @@ class DireWolf(Monster):
             senses={"Passive Perception": 13},
             special_abilities=["Keen Hearing and Smell: Advantage on Perception checks relying on hearing or smell.",
                                "Pack Tactics: Advantage on attacks if ally is adjacent to target."],
-            actions=[{"name": "Bite", "attack_bonus": 5, "damage": "2d6", "damage_bonus": 3, "damage_type": "piercing",
+            actions=[{"name": "Bite", "attack_bonus": 5, "damage": "2d6", "damage_bonus": 3, "damage_type": "Piercing",
                       "notes": "DC 13 Strength save or target is knocked Prone."}],
             **kwargs,
         )
@@ -773,13 +773,13 @@ class Ghoul(Monster):
             speed=30,
             ability_scores={"Strength": 13, "Dexterity": 15, "Constitution": 10,
                             "Intelligence": 7, "Wisdom": 10, "Charisma": 6},
-            immunities=["poison"],
+            immunities=["Poison"],
             condition_immunities=["Charmed", "Exhaustion", "Poisoned"],
             senses={"Darkvision": 60, "Passive Perception": 10},
             special_abilities=["Claws: On hit, target makes DC 10 Con save or is Paralyzed until end of its next turn (not elves or undead)."],
             actions=[
-                {"name": "Bite", "attack_bonus": 2, "damage": "2d6", "damage_bonus": 2, "damage_type": "piercing"},
-                {"name": "Claws", "attack_bonus": 4, "damage": "2d4", "damage_bonus": 2, "damage_type": "slashing",
+                {"name": "Bite", "attack_bonus": 2, "damage": "2d6", "damage_bonus": 2, "damage_type": "Piercing"},
+                {"name": "Claws", "attack_bonus": 4, "damage": "2d4", "damage_bonus": 2, "damage_type": "Slashing",
                  "notes": "DC 10 Con save or target is Paralyzed until end of its next turn."},
             ],
             **kwargs,
@@ -800,8 +800,8 @@ class Harpy(Monster):
             special_abilities=["Luring Song: Each humanoid/giant within 300 ft that can hear must succeed DC 11 Wis save or be Charmed and Incapacitated, moving toward the harpy each turn."],
             actions=[
                 {"name": "Multiattack", "notes": "Two attacks: one Claws and one Club."},
-                {"name": "Claws", "attack_bonus": 3, "damage": "2d4", "damage_bonus": 1, "damage_type": "slashing"},
-                {"name": "Club", "attack_bonus": 3, "damage": "1d4", "damage_bonus": 1, "damage_type": "bludgeoning"},
+                {"name": "Claws", "attack_bonus": 3, "damage": "2d4", "damage_bonus": 1, "damage_type": "Slashing"},
+                {"name": "Club", "attack_bonus": 3, "damage": "1d4", "damage_bonus": 1, "damage_type": "Bludgeoning"},
             ],
             **kwargs,
         )
@@ -821,8 +821,8 @@ class Ogre(Monster):
             senses={"Darkvision": 60, "Passive Perception": 8},
             languages=["Common", "Giant"],
             actions=[
-                {"name": "Greatclub", "attack_bonus": 6, "damage": "2d8", "damage_bonus": 4, "damage_type": "bludgeoning"},
-                {"name": "Javelin", "attack_bonus": 6, "damage": "2d6", "damage_bonus": 4, "damage_type": "piercing"},
+                {"name": "Greatclub", "attack_bonus": 6, "damage": "2d8", "damage_bonus": 4, "damage_type": "Bludgeoning"},
+                {"name": "Javelin", "attack_bonus": 6, "damage": "2d6", "damage_bonus": 4, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -843,7 +843,7 @@ class GiantSpider(Monster):
                                "Web Sense: While in contact with a web, knows location of other creatures touching it.",
                                "Web Walker: Ignores movement restrictions from webs."],
             actions=[
-                {"name": "Bite", "attack_bonus": 5, "damage": "1d8", "damage_bonus": 3, "damage_type": "piercing",
+                {"name": "Bite", "attack_bonus": 5, "damage": "1d8", "damage_bonus": 3, "damage_type": "Piercing",
                  "notes": "DC 11 Con save or take 2d8 poison (half on save). Fail by 5+ = Poisoned for 1 hour."},
                 {"name": "Web", "attack_bonus": 5, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
                  "notes": "Recharge 5-6. DC 12 Dex save or target is Restrained. DC 12 Str check to break free."},
@@ -865,7 +865,7 @@ class SeaHag(Monster):
             languages=["Aquan", "Common", "Giant"],
             special_abilities=["Horrific Appearance: Humanoid that sees the hag makes DC 11 Wis save or is Frightened for 1 minute.",
                                "Death Glare: Stare at one Frightened creature within 30 ft — it drops to 0 HP on failed DC 11 Wis save."],
-            actions=[{"name": "Claws", "attack_bonus": 5, "damage": "2d6", "damage_bonus": 3, "damage_type": "slashing"}],
+            actions=[{"name": "Claws", "attack_bonus": 5, "damage": "2d6", "damage_bonus": 3, "damage_type": "Slashing"}],
             **kwargs,
         )
 
@@ -886,9 +886,9 @@ class Manticore(Monster):
             special_abilities=["Tail Spike Regrowth: Has 24 tail spikes. Used spikes regrow when taking a Long Rest."],
             actions=[
                 {"name": "Multiattack", "notes": "Three attacks: one Bite and two Claws, or three Tail Spikes."},
-                {"name": "Bite", "attack_bonus": 5, "damage": "1d8", "damage_bonus": 3, "damage_type": "piercing"},
-                {"name": "Claw", "attack_bonus": 5, "damage": "1d6", "damage_bonus": 3, "damage_type": "slashing"},
-                {"name": "Tail Spike", "attack_bonus": 5, "damage": "1d8", "damage_bonus": 3, "damage_type": "piercing"},
+                {"name": "Bite", "attack_bonus": 5, "damage": "1d8", "damage_bonus": 3, "damage_type": "Piercing"},
+                {"name": "Claw", "attack_bonus": 5, "damage": "1d6", "damage_bonus": 3, "damage_type": "Slashing"},
+                {"name": "Tail Spike", "attack_bonus": 5, "damage": "1d8", "damage_bonus": 3, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -904,8 +904,8 @@ class Mummy(Monster):
             ability_scores={"Strength": 16, "Dexterity": 8, "Constitution": 15,
                             "Intelligence": 6, "Wisdom": 10, "Charisma": 12},
             saving_throw_proficiencies=["Wisdom"],
-            resistances=["bludgeoning", "piercing", "slashing"],
-            immunities=["necrotic", "poison"],
+            resistances=["Bludgeoning", "Piercing", "Slashing"],
+            immunities=["Necrotic", "Poison"],
             condition_immunities=["Charmed", "Exhaustion", "Frightened", "Paralyzed", "Poisoned"],
             senses={"Darkvision": 60, "Passive Perception": 10},
             languages=["The languages it knew in life"],
@@ -914,7 +914,7 @@ class Mummy(Monster):
                 {"name": "Multiattack", "notes": "Two attacks: one Dreadful Glare and one Rotting Fist."},
                 {"name": "Dreadful Glare", "attack_bonus": 0, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
                  "notes": "Target within 60 ft: DC 11 Wis save or Frightened until end of mummy's next turn. Fail by 5+ = also Paralyzed."},
-                {"name": "Rotting Fist", "attack_bonus": 5, "damage": "2d6", "damage_bonus": 3, "damage_type": "bludgeoning",
+                {"name": "Rotting Fist", "attack_bonus": 5, "damage": "2d6", "damage_bonus": 3, "damage_type": "Bludgeoning",
                  "notes": "Plus 3d6 necrotic damage and Mummy Rot curse."},
             ],
             **kwargs,
@@ -932,8 +932,8 @@ class Wight(Monster):
                             "Intelligence": 10, "Wisdom": 13, "Charisma": 15},
             saving_throw_proficiencies=["Strength", "Constitution", "Wisdom"],
             skill_proficiencies={"Perception": 3, "Stealth": 4},
-            resistances=["necrotic", "bludgeoning", "piercing", "slashing"],
-            immunities=["poison"],
+            resistances=["Necrotic", "Bludgeoning", "Piercing", "Slashing"],
+            immunities=["Poison"],
             condition_immunities=["Exhaustion", "Poisoned"],
             senses={"Darkvision": 60, "Passive Perception": 13},
             languages=["The languages it knew in life"],
@@ -941,9 +941,9 @@ class Wight(Monster):
                                "Life Drain: On Longsword hit, DC 13 Con save or max HP reduced by damage dealt. Dies if max HP drops to 0. Rises as zombie under wight's control."],
             actions=[
                 {"name": "Multiattack", "notes": "Two Longsword attacks or two Longbow attacks."},
-                {"name": "Longsword", "attack_bonus": 4, "damage": "1d8", "damage_bonus": 2, "damage_type": "slashing",
+                {"name": "Longsword", "attack_bonus": 4, "damage": "1d8", "damage_bonus": 2, "damage_type": "Slashing",
                  "notes": "Plus life drain effect."},
-                {"name": "Longbow", "attack_bonus": 4, "damage": "1d8", "damage_bonus": 2, "damage_type": "piercing"},
+                {"name": "Longbow", "attack_bonus": 4, "damage": "1d8", "damage_bonus": 2, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -961,8 +961,8 @@ class Banshee(Monster):
             ability_scores={"Strength": 1, "Dexterity": 14, "Constitution": 10,
                             "Intelligence": 12, "Wisdom": 11, "Charisma": 17},
             saving_throw_proficiencies=["Wisdom", "Charisma"],
-            resistances=["acid", "fire", "lightning", "thunder", "bludgeoning", "piercing", "slashing"],
-            immunities=["cold", "necrotic", "poison"],
+            resistances=["Acid", "Fire", "Lightning", "Thunder", "Bludgeoning", "Piercing", "Slashing"],
+            immunities=["Cold", "Necrotic", "Poison"],
             condition_immunities=["Charmed", "Exhaustion", "Frightened", "Grappled", "Paralyzed",
                                   "Petrified", "Poisoned", "Prone", "Restrained"],
             senses={"Darkvision": 60, "Passive Perception": 10},
@@ -970,7 +970,7 @@ class Banshee(Monster):
             special_abilities=["Detect Life: Senses living creatures within 5 miles.",
                                "Incorporeal Movement: Can move through creatures and objects (costs 5 ft per ft to move through solid objects)."],
             actions=[
-                {"name": "Corrupting Touch", "attack_bonus": 4, "damage": "3d6", "damage_bonus": 0, "damage_type": "necrotic"},
+                {"name": "Corrupting Touch", "attack_bonus": 4, "damage": "3d6", "damage_bonus": 0, "damage_type": "Necrotic"},
                 {"name": "Horrifying Visage", "attack_bonus": 0, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
                  "notes": "Each non-undead within 60 ft: DC 13 Wis save or Frightened for 1 minute. Fails by 5+ = ages 1d4 x 10 years."},
                 {"name": "Wail", "attack_bonus": 0, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
@@ -996,8 +996,8 @@ class Ettin(Monster):
                                "Wakeful: When one head sleeps, the other stays awake."],
             actions=[
                 {"name": "Multiattack", "notes": "Two attacks: one Battleaxe (right head) and one Morningstar (left head)."},
-                {"name": "Battleaxe", "attack_bonus": 7, "damage": "2d8", "damage_bonus": 5, "damage_type": "slashing"},
-                {"name": "Morningstar", "attack_bonus": 7, "damage": "2d8", "damage_bonus": 5, "damage_type": "piercing"},
+                {"name": "Battleaxe", "attack_bonus": 7, "damage": "2d8", "damage_bonus": 5, "damage_type": "Slashing"},
+                {"name": "Morningstar", "attack_bonus": 7, "damage": "2d8", "damage_bonus": 5, "damage_type": "Piercing"},
             ],
             **kwargs,
         )
@@ -1019,8 +1019,8 @@ class HillGiant(Monster):
             languages=["Giant"],
             actions=[
                 {"name": "Multiattack", "notes": "Two Greatclub attacks."},
-                {"name": "Greatclub", "attack_bonus": 8, "damage": "3d8", "damage_bonus": 5, "damage_type": "bludgeoning"},
-                {"name": "Rock", "attack_bonus": 8, "damage": "3d10", "damage_bonus": 5, "damage_type": "bludgeoning"},
+                {"name": "Greatclub", "attack_bonus": 8, "damage": "3d8", "damage_bonus": 5, "damage_type": "Bludgeoning"},
+                {"name": "Rock", "attack_bonus": 8, "damage": "3d10", "damage_bonus": 5, "damage_type": "Bludgeoning"},
             ],
             **kwargs,
         )
@@ -1042,8 +1042,8 @@ class Troll(Monster):
                                "Regeneration: Regain 10 HP at start of turn unless took acid or fire damage this turn. Dies at 0 HP only if it can't regenerate."],
             actions=[
                 {"name": "Multiattack", "notes": "One Bite and two Claw attacks."},
-                {"name": "Bite", "attack_bonus": 7, "damage": "1d6", "damage_bonus": 4, "damage_type": "piercing"},
-                {"name": "Claw", "attack_bonus": 7, "damage": "2d6", "damage_bonus": 4, "damage_type": "slashing"},
+                {"name": "Bite", "attack_bonus": 7, "damage": "1d6", "damage_bonus": 4, "damage_type": "Piercing"},
+                {"name": "Claw", "attack_bonus": 7, "damage": "2d6", "damage_bonus": 4, "damage_type": "Slashing"},
             ],
             **kwargs,
         )
@@ -1060,7 +1060,7 @@ class VampireSpawn(Monster):
                             "Intelligence": 11, "Wisdom": 10, "Charisma": 12},
             saving_throw_proficiencies=["Dexterity", "Wisdom"],
             skill_proficiencies={"Perception": 3, "Stealth": 6},
-            resistances=["necrotic", "bludgeoning", "piercing", "slashing"],
+            resistances=["Necrotic", "Bludgeoning", "Piercing", "Slashing"],
             senses={"Darkvision": 60, "Passive Perception": 13},
             languages=["The languages it knew in life"],
             special_abilities=["Regeneration: Regain 10 HP at start of turn if above 0 HP (not radiant or running water).",
@@ -1068,8 +1068,8 @@ class VampireSpawn(Monster):
                                "Vampire Weaknesses: Destroyed by sunlight (20 radiant at start of turn); can't cross running water; repelled by garlic/holy symbols."],
             actions=[
                 {"name": "Multiattack", "notes": "Two attacks: one Claws and one Bite."},
-                {"name": "Claws", "attack_bonus": 6, "damage": "2d4", "damage_bonus": 3, "damage_type": "slashing"},
-                {"name": "Bite", "attack_bonus": 6, "damage": "1d6", "damage_bonus": 3, "damage_type": "piercing",
+                {"name": "Claws", "attack_bonus": 6, "damage": "2d4", "damage_bonus": 3, "damage_type": "Slashing"},
+                {"name": "Bite", "attack_bonus": 6, "damage": "1d6", "damage_bonus": 3, "damage_type": "Piercing",
                  "notes": "Plus 2d6 necrotic. Target's max HP reduced by necrotic taken. Spawn regains HP equal to necrotic dealt."},
             ],
             **kwargs,
@@ -1089,7 +1089,7 @@ class Assassin(Monster):
                             "Intelligence": 13, "Wisdom": 11, "Charisma": 10},
             saving_throw_proficiencies=["Dexterity", "Intelligence"],
             skill_proficiencies={"Acrobatics": 6, "Deception": 3, "Perception": 3, "Stealth": 9},
-            resistances=["poison"],
+            resistances=["Poison"],
             senses={"Passive Perception": 13},
             languages=["Thieves' Cant", "Common"],
             special_abilities=["Assassinate: Advantage on attacks against creatures that haven't acted. Any hit against Surprised creatures is a critical hit.",
@@ -1097,9 +1097,9 @@ class Assassin(Monster):
                                "Sneak Attack: +4d6 damage once per turn if advantage or ally adjacent to target."],
             actions=[
                 {"name": "Multiattack", "notes": "Two Shortsword attacks."},
-                {"name": "Shortsword", "attack_bonus": 6, "damage": "1d6", "damage_bonus": 3, "damage_type": "piercing",
+                {"name": "Shortsword", "attack_bonus": 6, "damage": "1d6", "damage_bonus": 3, "damage_type": "Piercing",
                  "notes": "Plus 4d6 poison (DC 15 Con save halves)."},
-                {"name": "Hand Crossbow", "attack_bonus": 6, "damage": "1d6", "damage_bonus": 3, "damage_type": "piercing",
+                {"name": "Hand Crossbow", "attack_bonus": 6, "damage": "1d6", "damage_bonus": 3, "damage_type": "Piercing",
                  "notes": "Plus 4d6 poison (DC 15 Con save halves)."},
             ],
             **kwargs,
@@ -1125,8 +1125,8 @@ class CloudGiant(Monster):
                                "Innate Spellcasting: Wis-based DC 15. At will: Detect Magic, Fog Cloud, Light. 3/day: Feather Fall, Fly, Misty Step, Telekinesis. 1/day: Control Weather, Gaseous Form."],
             actions=[
                 {"name": "Multiattack", "notes": "Two Morningstar attacks."},
-                {"name": "Morningstar", "attack_bonus": 12, "damage": "3d8", "damage_bonus": 8, "damage_type": "piercing"},
-                {"name": "Rock", "attack_bonus": 12, "damage": "4d10", "damage_bonus": 8, "damage_type": "bludgeoning"},
+                {"name": "Morningstar", "attack_bonus": 12, "damage": "3d8", "damage_bonus": 8, "damage_type": "Piercing"},
+                {"name": "Rock", "attack_bonus": 12, "damage": "4d10", "damage_bonus": 8, "damage_type": "Bludgeoning"},
             ],
             **kwargs,
         )
@@ -1145,7 +1145,7 @@ class Vampire(Monster):
                             "Intelligence": 17, "Wisdom": 15, "Charisma": 18},
             saving_throw_proficiencies=["Dexterity", "Wisdom", "Charisma"],
             skill_proficiencies={"Perception": 7, "Stealth": 9},
-            resistances=["necrotic", "bludgeoning", "piercing", "slashing"],
+            resistances=["Necrotic", "Bludgeoning", "Piercing", "Slashing"],
             senses={"Darkvision": 120, "Passive Perception": 17},
             languages=["The languages it knew in life"],
             special_abilities=["Legendary Resistance (3/Day): Choose to succeed a failed saving throw.",
@@ -1154,9 +1154,9 @@ class Vampire(Monster):
                                "Vampire Weaknesses: Destroyed by sunlight; can't cross running water; repelled by garlic/holy symbols."],
             actions=[
                 {"name": "Multiattack", "notes": "Two attacks: one Unarmed Strike and one Bite, or use Charm."},
-                {"name": "Unarmed Strike", "attack_bonus": 9, "damage": "1d8", "damage_bonus": 4, "damage_type": "bludgeoning",
+                {"name": "Unarmed Strike", "attack_bonus": 9, "damage": "1d8", "damage_bonus": 4, "damage_type": "Bludgeoning",
                  "notes": "Target is Grappled (escape DC 18) on hit."},
-                {"name": "Bite", "attack_bonus": 9, "damage": "1d6", "damage_bonus": 4, "damage_type": "piercing",
+                {"name": "Bite", "attack_bonus": 9, "damage": "1d6", "damage_bonus": 4, "damage_type": "Piercing",
                  "notes": "Only vs Grappled, Incapacitated, or Restrained target. Plus 3d6 necrotic. Max HP reduced by necrotic. Vampire regains that HP."},
                 {"name": "Charm", "attack_bonus": 0, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
                  "notes": "Target within 30 ft: DC 17 Wis save or Charmed for 24 hours (repeats when damaged)."},
@@ -1183,20 +1183,20 @@ class AdultRedDragon(Monster):
                             "Intelligence": 16, "Wisdom": 13, "Charisma": 21},
             saving_throw_proficiencies=["Dexterity", "Constitution", "Wisdom", "Charisma"],
             skill_proficiencies={"Perception": 13, "Stealth": 6},
-            immunities=["fire"],
+            immunities=["Fire"],
             senses={"Blindsight": 60, "Darkvision": 120, "Passive Perception": 23},
             languages=["Common", "Draconic"],
             special_abilities=["Legendary Resistance (3/Day): Choose to succeed a failed saving throw.",
                                "Fire Aura (Lair only): Difficult terrain within 20 ft. Creatures that start their turn there take 5 fire damage."],
             actions=[
                 {"name": "Multiattack", "notes": "One Frightful Presence + three attacks: one Bite and two Claws."},
-                {"name": "Bite", "attack_bonus": 14, "damage": "2d10", "damage_bonus": 8, "damage_type": "piercing",
+                {"name": "Bite", "attack_bonus": 14, "damage": "2d10", "damage_bonus": 8, "damage_type": "Piercing",
                  "notes": "Plus 4d6 fire damage."},
-                {"name": "Claw", "attack_bonus": 14, "damage": "2d6", "damage_bonus": 8, "damage_type": "slashing"},
-                {"name": "Tail", "attack_bonus": 14, "damage": "2d8", "damage_bonus": 8, "damage_type": "bludgeoning"},
+                {"name": "Claw", "attack_bonus": 14, "damage": "2d6", "damage_bonus": 8, "damage_type": "Slashing"},
+                {"name": "Tail", "attack_bonus": 14, "damage": "2d8", "damage_bonus": 8, "damage_type": "Bludgeoning"},
                 {"name": "Frightful Presence", "attack_bonus": 0, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
                  "notes": "Each creature of choice within 120 ft: DC 19 Wis save or Frightened for 1 minute."},
-                {"name": "Fire Breath", "attack_bonus": 0, "damage": "16d6", "damage_bonus": 0, "damage_type": "fire",
+                {"name": "Fire Breath", "attack_bonus": 0, "damage": "16d6", "damage_bonus": 0, "damage_type": "Fire",
                  "notes": "Recharge 5-6. 60-ft cone. DC 21 Dex save; half on success."},
             ],
             legendary_actions=[
@@ -1221,8 +1221,8 @@ class Lich(Monster):
                             "Intelligence": 20, "Wisdom": 14, "Charisma": 16},
             saving_throw_proficiencies=["Constitution", "Intelligence", "Wisdom"],
             skill_proficiencies={"Arcana": 18, "History": 12, "Insight": 9, "Perception": 9},
-            resistances=["cold", "lightning", "necrotic"],
-            immunities=["poison", "bludgeoning", "piercing", "slashing"],
+            resistances=["Cold", "Lightning", "Necrotic"],
+            immunities=["Poison", "Bludgeoning", "Piercing", "Slashing"],
             condition_immunities=["Charmed", "Exhaustion", "Frightened", "Paralyzed", "Poisoned"],
             senses={"Truesight": 120, "Passive Perception": 19},
             languages=["Common and up to five other languages"],
@@ -1230,7 +1230,7 @@ class Lich(Monster):
                                "Rejuvenation: If the lich has a phylactery, it regains a new body in 1d10 days after being destroyed.",
                                "Spellcasting: Int-based DC 20, +12 to hit. Prepared spells include Fireball, Lightning Bolt, Power Word Kill, Time Stop, and many more."],
             actions=[
-                {"name": "Paralyzing Touch", "attack_bonus": 7, "damage": "3d6", "damage_bonus": 0, "damage_type": "cold",
+                {"name": "Paralyzing Touch", "attack_bonus": 7, "damage": "3d6", "damage_bonus": 0, "damage_type": "Cold",
                  "notes": "DC 18 Con save or Paralyzed for 1 minute (repeats at end of each turn)."},
             ],
             legendary_actions=[
@@ -1256,20 +1256,20 @@ class AncientRedDragon(Monster):
                             "Intelligence": 18, "Wisdom": 15, "Charisma": 23},
             saving_throw_proficiencies=["Dexterity", "Constitution", "Wisdom", "Charisma"],
             skill_proficiencies={"Perception": 16, "Stealth": 7},
-            immunities=["fire"],
+            immunities=["Fire"],
             senses={"Blindsight": 60, "Darkvision": 120, "Passive Perception": 26},
             languages=["Common", "Draconic"],
             special_abilities=["Legendary Resistance (3/Day): Choose to succeed a failed saving throw.",
                                "Volcanic Aura (Lair only): Ranged weapon attacks within 60 ft have disadvantage. Fire in lair can erupt from ground."],
             actions=[
                 {"name": "Multiattack", "notes": "One Frightful Presence + three attacks: one Bite and two Claws."},
-                {"name": "Bite", "attack_bonus": 17, "damage": "2d10", "damage_bonus": 10, "damage_type": "piercing",
+                {"name": "Bite", "attack_bonus": 17, "damage": "2d10", "damage_bonus": 10, "damage_type": "Piercing",
                  "notes": "Plus 4d6 fire damage."},
-                {"name": "Claw", "attack_bonus": 17, "damage": "2d6", "damage_bonus": 10, "damage_type": "slashing"},
-                {"name": "Tail", "attack_bonus": 17, "damage": "2d8", "damage_bonus": 10, "damage_type": "bludgeoning"},
+                {"name": "Claw", "attack_bonus": 17, "damage": "2d6", "damage_bonus": 10, "damage_type": "Slashing"},
+                {"name": "Tail", "attack_bonus": 17, "damage": "2d8", "damage_bonus": 10, "damage_type": "Bludgeoning"},
                 {"name": "Frightful Presence", "attack_bonus": 0, "damage": "0d0", "damage_bonus": 0, "damage_type": "none",
                  "notes": "Each creature of choice within 120 ft: DC 21 Wis save or Frightened for 1 minute."},
-                {"name": "Fire Breath", "attack_bonus": 0, "damage": "26d6", "damage_bonus": 0, "damage_type": "fire",
+                {"name": "Fire Breath", "attack_bonus": 0, "damage": "26d6", "damage_bonus": 0, "damage_type": "Fire",
                  "notes": "Recharge 5-6. 90-ft cone. DC 24 Dex save; half on success."},
             ],
             legendary_actions=[

@@ -33,7 +33,7 @@ class Barbarian(Class):
         from src.conditions import Condition
         rage_condition = Condition(
             name="Rage",
-            description="While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to bludgeoning, piercing, and slashing damage.",
+            description="While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to Bludgeoning, Piercing, and Slashing damage.",
             duration=10  # 1 minute = 10 rounds; also ends early via rage-end check in combat
         )
         rage_condition.bonus_resistances = ["Bludgeoning", "Piercing", "Slashing"]
@@ -57,7 +57,7 @@ class Barbarian(Class):
                 range_="Self",
                 components=[],
                 duration="Instantaneous",
-                description="In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to bludgeoning, piercing, and slashing damage.",
+                description="In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to Bludgeoning, Piercing, and Slashing damage.",
                 uses_left=RAGES_PER_LEVEL[self.level - 1],
                 cooldown="Long Rest",
                 cast=lambda caster, targets: caster.active_effects.append(self._calculate_rage_condition())
@@ -90,7 +90,7 @@ class Barbarian(Class):
                 range_="Self",
                 components=[],
                 duration="Instantaneous",
-                description="In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to bludgeoning, piercing, and slashing damage.",
+                description="In battle, you fight with primal ferocity. On your turn, you can enter a rage as a bonus action. While raging, you gain the following benefits if you aren't wearing heavy armor: You have advantage on Strength checks and Strength saving throws. When you make a melee weapon attack using Strength, you gain a bonus to the damage roll that increases as you gain levels as a barbarian, as shown in the Rage Damage column of the Barbarian table. You have resistance to Bludgeoning, Piercing, and Slashing damage.",
                 uses_left=RAGES_PER_LEVEL[self.level - 1],
                 cooldown="Long Rest",
                 cast=lambda caster, targets: caster.active_effects.append(self._calculate_rage_condition())
