@@ -299,7 +299,7 @@ class Monster:
         else:
             print(f"Miss! Roll: {total} vs AC {target_ac}")
 
-    def move(self, map_, x: int, y: int, z: int = 0) -> dict:
+    def move(self, map_, x: int, y: int, z: int = 0, budget: float = None) -> dict:
         """Move toward (x, y, z) using A* pathfinding.
 
         Step costs follow the Pythagorean theorem — moving through d axes costs
@@ -310,13 +310,16 @@ class Monster:
         The correct speed pool is chosen automatically:
           - any step with z > 0  → flying_speed
           - any step with z < 0  → swimming_speed
-          - otherwise            → speed (walking) + bonus_speed if set
+          - otherwise            → speed (walking, includes bonus_speed)
+
+        Args:
+          budget — optional cap on feet for this call (supports split movement).
 
         Returns a dict:
           path              — full planned path as list of (x, y, z) cells
           reached           — final position after consuming available movement
           movement_used     — feet spent (rounded to nearest foot)
-          movement_remaining — feet remaining this turn
+          movement_remaining — feet remaining within this call's budget
           blocked           — True if no path to the target exists
         """
         import math as _math
@@ -324,16 +327,17 @@ class Monster:
             raise RuntimeError(f"{self.name} is not placed on a map.")
 
         path = map_.find_path(self, x, y, z)
+        avail = budget if budget is not None else self.speed
         if path is None:
             return {
                 "path": [], "reached": self.position,
-                "movement_used": 0, "movement_remaining": self.speed,
+                "movement_used": 0, "movement_remaining": round(avail),
                 "blocked": True,
             }
         if not path:
             return {
                 "path": [], "reached": self.position,
-                "movement_used": 0, "movement_remaining": self.speed,
+                "movement_used": 0, "movement_remaining": round(avail),
                 "blocked": False,
             }
 
@@ -346,6 +350,8 @@ class Monster:
         else:
             # self.speed already incorporates bonus_speed and condition overrides
             speed_ft = self.speed
+        if budget is not None:
+            speed_ft = min(speed_ft, budget)
 
         cost_ft = 0.0
         prev = self.position

@@ -598,7 +598,7 @@ class Character:
             # TODO: Implement short rest logic with hit die
             pass
 
-    def move(self, map_, x: int, y: int, z: int = 0) -> dict:
+    def move(self, map_, x: int, y: int, z: int = 0, budget: float = None) -> dict:
         """Move toward (x, y, z) using A* from map_.find_path().
 
         Step costs follow the Pythagorean theorem — moving through d axes costs
@@ -608,13 +608,18 @@ class Character:
         Speed pool chosen from the path's z-range:
           - any step with z > 0  → flying_speed
           - any step with z < 0  → swimming_speed
-          - otherwise            → speed (walking) + bonus_speed if set
+          - otherwise            → speed (walking, includes bonus_speed)
+
+        Args:
+          budget — optional cap on feet available for this call (used by combat
+                   to support split movement across multiple move commands).
+                   Defaults to the creature's full speed.
 
         Returns a dict:
           path               — full planned path as list of (x, y, z) cells
           reached            — final position after consuming available movement
           movement_used      — feet spent (rounded to nearest foot)
-          movement_remaining — feet remaining this turn
+          movement_remaining — feet remaining within this call's budget
           blocked            — True if no path to the target exists
         """
         import math as _math
@@ -622,16 +627,17 @@ class Character:
             raise RuntimeError(f"{self.name} is not placed on a map.")
 
         path = map_.find_path(self, x, y, z)
+        avail = budget if budget is not None else self.speed
         if path is None:
             return {
                 "path": [], "reached": self.position,
-                "movement_used": 0, "movement_remaining": self.speed,
+                "movement_used": 0, "movement_remaining": round(avail),
                 "blocked": True,
             }
         if not path:
             return {
                 "path": [], "reached": self.position,
-                "movement_used": 0, "movement_remaining": self.speed,
+                "movement_used": 0, "movement_remaining": round(avail),
                 "blocked": False,
             }
 
@@ -644,6 +650,8 @@ class Character:
         else:
             # self.speed already incorporates bonus_speed and condition overrides
             speed_ft = self.speed
+        if budget is not None:
+            speed_ft = min(speed_ft, budget)
 
         cost_ft = 0.0
         prev = self.position
