@@ -1,7 +1,4 @@
 from src.creatures import Character
-from src.spells import Spell
-from src.items import *
-from src.common import dnd_skills, artisans_tools
 
 
 class Class:
@@ -19,7 +16,7 @@ class Class:
             "Skills": []
         }
 
-    def apply_to_character(self, character):
+    def apply_to_character(self, character: Character):
         character.proficiencies["Armor"] += self.proficiencies["Armor"]
         character.proficiencies["Weapons"] += self.proficiencies["Weapons"]
         character.proficiencies["Tools"] += self.proficiencies["Tools"]
@@ -27,10 +24,14 @@ class Class:
         character.proficiencies["Skills"] += self.proficiencies["Skills"]
         return character
 
-    def level_up(self, character):
-        # These are handled in the specific class level up functions, but this is where you would put any general level up logic that applies to all classes, such as increasing hit points or granting ability score improvements.
+    def level_up(self, character: Character):
+        self.level += 1
+        # Insert class back where it was in the list of classes to preserve ordering (important for spellcasting progression)
+        for i, cls in enumerate(character.classes):
+            if cls.name == self.name:
+                character.classes[i] = self
+                break
         return character
-
 
 
 # ── Shared spell-slot tables ───────────────────────────────────────────────
@@ -95,7 +96,3 @@ _FIGHTING_STYLES = [
     "Great Weapon Fighting", "Interception", "Protection",
     "Thrown Weapon Fighting", "Two-Weapon Fighting", "Unarmed Fighting",
 ]
-
-
-# ── Cleric ─────────────────────────────────────────────────────────────────
-

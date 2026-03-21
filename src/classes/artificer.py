@@ -1,18 +1,17 @@
 from src.creatures import Character
 from src.spells import Spell
 from src.items import *
-from src.common import dnd_skills, artisans_tools
+from src.common import artisans_tools
 from src.classes._base import (
-    Class, _FULL_CASTER_SLOTS, _HALF_CASTER_SLOTS,
-    _WARLOCK_PACT_SLOTS, _FIGHTING_STYLES,
+    Class, _HALF_CASTER_SLOTS,
 )
 
-SPELL_SLOTS = _HALF_CASTER_SLOTS
 
 # Plans Known by level (index = level - 1); level 1 has none
 _PLANS_KNOWN = [0, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8]
 # Max magic items created via Replicate Magic Item by level
 _MAGIC_ITEMS_MAX = [0, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6]
+
 
 _TINKERS_MAGIC_ITEMS = [
     "Ball Bearings", "Flask", "Pouch", "Basket", "Grappling Hook", "Rope",
@@ -31,6 +30,8 @@ class Artificer(Class):
         self.hit_dice = 8
         self.primary_ability = "Intelligence"
         self.spellcasting_ability = "Intelligence"
+        self.spell_slots = dict(_HALF_CASTER_SLOTS[level - 1])
+        self.spell_slots_remaining = dict(_HALF_CASTER_SLOTS[level - 1])
         self.proficiencies["Armor"] = ["Light", "Medium", "Shield"]
         self.proficiencies["Weapons"] = ["Simple"]
         self.proficiencies["Tools"] = ["Thieves' Tools", "Tinker's Tools"]
@@ -53,9 +54,6 @@ class Artificer(Class):
         self.completed_levelup_to = 1
         if not isinstance(character.special_abilities, list):
             character.special_abilities = []
-
-        # Spell slots (half-caster, Intelligence)
-        character.spell_slots = SPELL_SLOTS[self.level - 1].copy()
 
         # Tinker's Magic: create mundane items with Tinker's Tools
         character.special_abilities += [
@@ -92,18 +90,18 @@ class Artificer(Class):
         ])
 
         # Apply level-up features for levels above 1
-        for lvl in range(2, self.level + 1):
-            self._apply_level(character, lvl)
+        for lv in range(2, self.level + 1):
+            self._apply_level(character, lv)
 
         return character
 
-    def _apply_level(self, character: Character, lvl: int):
+    def _apply_level(self, character: Character, level: int):
         if not isinstance(character.special_abilities, list):
             character.special_abilities = []
 
-        if lvl == 2:
-            plans = _PLANS_KNOWN[lvl - 1]
-            max_items = _MAGIC_ITEMS_MAX[lvl - 1]
+        if level == 2:
+            plans = _PLANS_KNOWN[level - 1]
+            max_items = _MAGIC_ITEMS_MAX[level - 1]
             character.special_abilities += [
                 Spell(
                     name="Replicate Magic Item",
@@ -134,7 +132,7 @@ class Artificer(Class):
                 }
             ])
 
-        elif lvl == 3:
+        elif level == 3:
             character.todo.extend([
                 {
                     "Text": "Choose an Artificer Subclass: Alchemist, Armorer, Artillerist, or Battle Smith.",
@@ -144,7 +142,7 @@ class Artificer(Class):
                 }
             ])
 
-        elif lvl == 6:
+        elif level == 6:
             character.special_abilities += [
                 Spell(
                     name="Magic Item Tinker",
@@ -158,7 +156,7 @@ class Artificer(Class):
                 )
             ]
 
-        elif lvl == 7:
+        elif level == 7:
             character.special_abilities += [
                 Spell(
                     name="Flash of Genius",
@@ -172,7 +170,7 @@ class Artificer(Class):
                 )
             ]
 
-        elif lvl == 10:
+        elif level == 10:
             character.special_abilities += [
                 Spell(
                     name="Magic Item Adept",
@@ -184,7 +182,7 @@ class Artificer(Class):
                 )
             ]
 
-        elif lvl == 11:
+        elif level == 11:
             character.special_abilities += [
                 Spell(
                     name="Spell-Storing Item",
@@ -196,7 +194,7 @@ class Artificer(Class):
                 )
             ]
 
-        elif lvl == 14:
+        elif level == 14:
             character.special_abilities += [
                 Spell(
                     name="Advanced Artifice",
@@ -208,7 +206,7 @@ class Artificer(Class):
                 )
             ]
 
-        elif lvl == 18:
+        elif level == 18:
             character.special_abilities += [
                 Spell(
                     name="Magic Item Master",
@@ -220,7 +218,7 @@ class Artificer(Class):
                 )
             ]
 
-        elif lvl == 20:
+        elif level == 20:
             character.special_abilities += [
                 Spell(
                     name="Soul of Artifice",
@@ -232,11 +230,11 @@ class Artificer(Class):
                 )
             ]
 
-        self.completed_levelup_to = lvl
+        self.completed_levelup_to = level
+        self.spell_slots = dict(_HALF_CASTER_SLOTS[level - 1])
+        self.spell_slots_remaining = dict(_HALF_CASTER_SLOTS[level - 1])
 
     def level_up(self, character: Character):
-        self.level += 1
-        character.spell_slots = SPELL_SLOTS[self.level - 1].copy()
+        super().level_up(character)
         self._apply_level(character, self.level)
-        character.classes = [cls for cls in character.classes if cls.name != self.name] + [self]
         return character

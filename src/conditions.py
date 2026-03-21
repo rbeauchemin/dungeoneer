@@ -50,6 +50,7 @@ class Condition:
     auto_fail_saving_throws = ()
     bonus_resistances = ()
     bonus_immunities = ()
+    bonus_damage = 0
     weight_multiplier = 1
     prevents_casting = False
 

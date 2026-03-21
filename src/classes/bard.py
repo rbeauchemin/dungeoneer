@@ -1,44 +1,19 @@
 from src.creatures import Character
 from src.spells import Spell
 from src.items import *
-from src.common import dnd_skills, artisans_tools
+from src.common import dnd_skills
 from src.classes._base import (
-    Class, _FULL_CASTER_SLOTS, _HALF_CASTER_SLOTS,
-    _WARLOCK_PACT_SLOTS, _FIGHTING_STYLES,
+    Class, _FULL_CASTER_SLOTS,
 )
 
 
 class Bard(Class):
-    # Full caster spell slot table (levels 1–20)
-    SPELL_SLOTS = [
-        {1: 2},                                                         # Level 1
-        {1: 3},                                                         # Level 2
-        {1: 4, 2: 2},                                                   # Level 3
-        {1: 4, 2: 3},                                                   # Level 4
-        {1: 4, 2: 3, 3: 2},                                            # Level 5
-        {1: 4, 2: 3, 3: 3},                                            # Level 6
-        {1: 4, 2: 3, 3: 3, 4: 1},                                      # Level 7
-        {1: 4, 2: 3, 3: 3, 4: 2},                                      # Level 8
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 1},                               # Level 9
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2},                               # Level 10
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},                        # Level 11
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1},                        # Level 12
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},                  # Level 13
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1},                  # Level 14
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},            # Level 15
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1},            # Level 16
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 2, 6: 1, 7: 1, 8: 1, 9: 1},     # Level 17
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 1, 7: 1, 8: 1, 9: 1},     # Level 18
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 1, 8: 1, 9: 1},     # Level 19
-        {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 2, 7: 2, 8: 1, 9: 1},     # Level 20
-    ]
-
     # Bardic Inspiration die by level
     BARDIC_INSPIRATION_DIE = {
-        **{lv: "d6" for lv in range(1, 5)},
-        **{lv: "d8" for lv in range(5, 10)},
-        **{lv: "d10" for lv in range(10, 15)},
-        **{lv: "d12" for lv in range(15, 21)},
+        **{lv: "1d6" for lv in range(1, 5)},
+        **{lv: "1d8" for lv in range(5, 10)},
+        **{lv: "1d10" for lv in range(10, 15)},
+        **{lv: "1d12" for lv in range(15, 21)},
     }
 
     # Cantrips known by level (index 0 = level 1)
@@ -63,8 +38,8 @@ class Bard(Class):
         self.hit_dice = 8
         self.primary_ability = "Charisma"
         self.spellcasting_ability = "Charisma"
-        self.spell_slots = dict(self.SPELL_SLOTS[level - 1])
-        self.spell_slots_remaining = dict(self.SPELL_SLOTS[level - 1])
+        self.spell_slots = dict(_FULL_CASTER_SLOTS[level - 1])
+        self.spell_slots_remaining = dict(_FULL_CASTER_SLOTS[level - 1])
         self.proficiencies["Armor"] = ["Light"]
         self.proficiencies["Weapons"] = ["Simple"]
         self.proficiencies["Saving Throws"] = ["Dexterity", "Charisma"]
@@ -211,7 +186,7 @@ class Bard(Class):
             )
 
         # Update Bardic Inspiration die if it increases at this level
-        prev_die = self.BARDIC_INSPIRATION_DIE.get(level - 1, "d6")
+        prev_die = self.BARDIC_INSPIRATION_DIE.get(level - 1, "1d6")
         new_die = self.BARDIC_INSPIRATION_DIE[level]
         if new_die != prev_die:
             for ability in character.special_abilities:
@@ -221,8 +196,8 @@ class Bard(Class):
                     )
 
         # Update spell slots
-        self.spell_slots = dict(self.SPELL_SLOTS[level - 1])
-        self.spell_slots_remaining = dict(self.SPELL_SLOTS[level - 1])
+        self.spell_slots = dict(_FULL_CASTER_SLOTS[level - 1])
+        self.spell_slots_remaining = dict(_FULL_CASTER_SLOTS[level - 1])
         self.completed_levelup_to = level
 
     # ── apply_to_character ────────────────────────────────────────────────────
@@ -296,8 +271,6 @@ class Bard(Class):
     # ── level_up ──────────────────────────────────────────────────────────────
 
     def level_up(self, character: Character):
-        self.level += 1
+        super().level_up(character)
         self._apply_level(character, self.level)
-        character.classes = [cls for cls in character.classes if cls.name != self.name] + [self]
         return character
-

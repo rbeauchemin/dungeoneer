@@ -474,7 +474,7 @@ class Character:
             total = roll_dice(dice_split[0], dice_split[1]) + ability_bonus
             print(f"The total damage done is {total}")
             if weapon.damage_type in target.resistances:
-                print("The attack doesn't seem very effective")
+                print("The attack doesn't seem very effective.")
                 total = total // 2
             elif weapon.damage_type in target.immunities:
                 print("The attack did nothing at all!")

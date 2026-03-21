@@ -1,10 +1,7 @@
 from src.creatures import Character
-from src.spells import Spell
 from src.items import *
-from src.common import dnd_skills, artisans_tools
 from src.classes._base import (
-    Class, _FULL_CASTER_SLOTS, _HALF_CASTER_SLOTS,
-    _WARLOCK_PACT_SLOTS, _FIGHTING_STYLES,
+    Class, _WARLOCK_PACT_SLOTS,
 )
 
 
@@ -162,11 +159,6 @@ class Warlock(Class):
         return character
 
     def level_up(self, character: Character):
-        self.level += 1
+        super().level_up(character)
         self._apply_level(character, self.level)
-        character.classes = [cls for cls in character.classes if cls.name != self.name] + [self]
         return character
-
-
-# ── Wizard ─────────────────────────────────────────────────────────────────
-
