@@ -23,7 +23,7 @@ Usage::
 
     dungeon = Map(20, 15, name="Dungeon Level 1")
     # players: list of Character objects already placed on the map
-    monsters = generate_encounter(
+    map, monsters = generate_encounter(
         party=players,
         difficulty="medium",       # "easy" | "medium" | "hard"
         map_=dungeon,
@@ -50,11 +50,13 @@ from src.creatures.monsters import (
     Assassin, CloudGiant, Vampire,
     AdultRedDragon, Lich, AncientRedDragon,
 )
+from src.map import Map
 
 
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 # (MonsterClass, challenge_rating)
+# TODO: automatically generate this from the Monster classes themselves, perhaps via a decorator or metaclass
 _MONSTER_TABLE: list[tuple] = [
     (Commoner,        0),
     (Rat,             0),
@@ -96,9 +98,9 @@ _MONSTER_TABLE: list[tuple] = [
 ]
 
 DIFFICULTY_MULTIPLIERS: dict[str, float] = {
-    "easy":   0.5,
-    "medium": 1.0,
-    "hard":   2.0,
+    "easy":   0.25,
+    "medium": 0.5,
+    "hard":   1.0,
 }
 
 # Upper bound on encounter group size regardless of budget
@@ -113,9 +115,9 @@ _MIN_EFFECTIVE_CR = 0.125
 def generate_encounter(
     party: list,
     difficulty: str = "medium",
-    map_=None,
+    map_: Map = None,
     spawn_region: Optional[tuple[int, int, int, int]] = None,
-) -> list:
+) -> tuple[Map, list]:
     """Generate a group of same-type monsters scaled to the party.
 
     Parameters
@@ -134,15 +136,21 @@ def generate_encounter(
 
     Returns
     -------
-    list
-        Freshly instantiated Monster objects.  If placement was requested
-        and there were not enough free cells, any remaining monsters are
-        returned without a map position.
+    (map, monsters) : (Map, list)
+        map : Map
+            The map on which the encounter takes place.  This is either the
+            provided *map_* with monsters placed on it, or a newly generated
+            random map if no *map_* was given.
+        monsters :
+        list
+            Freshly instantiated Monster objects.  If placement was requested
+            and there were not enough free cells, any remaining monsters are
+            returned without a map position.
 
     Raises
     ------
     ValueError
-        If *party* is empty or *difficulty* is not a recognised string.
+        If *party* is empty or *difficulty* is not a recognized string.
     """
     if not party:
         raise ValueError("party cannot be empty.")
@@ -162,7 +170,15 @@ def generate_encounter(
     monsters = [monster_cls() for _ in range(count)]
 
     if map_ is not None and spawn_region is not None:
-        _place_monsters(monsters, map_, spawn_region)
+        _place_characters(monsters, map_, spawn_region)
+    else:
+        # generate a random map with random positions and obstacles
+        width = max(10, count * 2)  # ensure enough space for all monsters
+        height = max(10, count * 2)
+        map_ = Map(width, height, name="Random Encounter Map")
+        _place_chests_and_obstacles(map_)
+        _place_characters(monsters, map_, (width // 2, height // 2, width - 1, height - 1))
+        _place_characters(party, map_, (0, 0, width // 2 - 1, height // 2 - 1))
 
     total_cr = monster_cr * count
     print(
@@ -170,7 +186,7 @@ def generate_encounter(
         f"(CR {_cr_str(monster_cr)} each, total CR {_cr_str(total_cr)}) "
         f"[budget: {_cr_str(budget)}]"
     )
-    return monsters
+    return map_, monsters
 
 
 def encounter_info(party: list) -> None:
@@ -209,8 +225,8 @@ def _select_monster_and_count(budget: float) -> tuple:
     return monster_cls, monster_cr, count
 
 
-def _place_monsters(monsters: list, map_, spawn_region: tuple[int, int, int, int]):
-    """Scatter monsters across random passable cells in spawn_region."""
+def _place_characters(characters: list, map_, spawn_region: tuple[int, int, int, int]):
+    """Scatter characters across random passable cells in spawn_region."""
     x1, y1, x2, y2 = spawn_region
     candidates = [
         (x, y)
@@ -219,8 +235,24 @@ def _place_monsters(monsters: list, map_, spawn_region: tuple[int, int, int, int
         if map_.is_passable(x, y, 0) and not map_.get_creatures_at(x, y, 0)
     ]
     random.shuffle(candidates)
-    for monster, (x, y) in zip(monsters, candidates):
-        map_.place_creature(monster, x, y)
+    for characters, (x, y) in zip(characters, candidates):
+        map_.place_creature(characters, x, y)
+
+
+def _place_chests_and_obstacles(map_):
+    """Randomly place some chests and obstacles on the map."""
+    from src.map import Chest, Wall, Rock, Tree
+    width, height = map_.width, map_.height
+    num_chests = random.randint(0, 1)
+    num_obstacles = random.randint(5, 10)
+    for _ in range(num_chests):
+        x, y = random.randint(0, width - 1), random.randint(0, height - 1)
+        if map_.is_passable(x, y, 0) and not map_.get_creatures_at(x, y, 0):
+            map_.place_object(Chest(x=x, y=y))
+    for _ in range(num_obstacles):
+        x, y = random.randint(0, width - 1), random.randint(0, height - 1)
+        if map_.is_passable(x, y, 0) and not map_.get_creatures_at(x, y, 0):
+            map_.place_object(random.choice([Wall(x=x, y=y), Rock(x=x, y=y), Tree(x=x, y=y)]))
 
 
 def _cr_str(cr: float) -> str:

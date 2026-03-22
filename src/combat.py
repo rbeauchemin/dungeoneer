@@ -37,6 +37,7 @@ Player turn commands
 from __future__ import annotations
 
 import math
+import re
 
 from src.common import roll_dice
 
@@ -176,18 +177,14 @@ class Combat:
         Player-controlled :class:`~src.creatures.Character` instances.
     monsters : list
         AI-controlled :class:`~src.creatures.monsters.Monster` instances.
-    lethal : bool
-        When True (default), creatures reduced to 0 HP gain the Dead
-        condition. When False they become Unconscious instead.
     """
 
     MELEE_REACH = 5   # feet — standard melee reach
 
-    def __init__(self, map_, players: list, monsters: list, lethal: bool = True):
+    def __init__(self, map_, players: list, monsters: list):
         self.map = map_
         self.players = list(players)
         self.monsters = list(monsters)
-        self.lethal = lethal
         self._order: list = []
 
     # ── Internal state checks ─────────────────────────────────────────────────
@@ -219,6 +216,9 @@ class Combat:
 
         rolls.sort(key=lambda t: t[0], reverse=True)
         self._order = [creature for _, creature in rolls]
+        for i, creature in enumerate(self._order, start=1):
+            # Add numbers as prefix to names for easier reference during combat
+            creature.name = f"{i}. {creature.name}"
 
         print("\nInitiative order:")
         for i, c in enumerate(self._order, 1):
@@ -264,7 +264,7 @@ class Combat:
     def _monster_attack(self, monster, target, action_name=None):
         """Execute a monster attack and flag the target if damage was dealt."""
         prev_hp = target.current_hp
-        monster.attack(target, action_name=action_name, lethal=self.lethal)
+        monster.attack(target, action_name=action_name, lethal=True)
         if target.current_hp < prev_hp:
             target._took_damage_this_turn = True
 
@@ -351,7 +351,33 @@ class Combat:
             print("  No movement remaining this turn.")
             return movement_remaining_ft
         if len(parts) < 3:
-            print("  Usage: move <x> <y> [z]")
+            # go to space near target creature if specified, otherwise give usage message
+            if len(parts) == 2:
+                target_name = parts[1]
+                targets = self._alive_monsters() if player in self.players else self._alive_players()
+                target = self._resolve_target(target_name, targets)
+                if target is None:
+                    return movement_remaining_ft
+                tx, ty, tz = target.position
+                # Move to an adjacent cell if possible
+                for dx in range(-1, 2):
+                    for dy in range(-1, 2):
+                        if dx == 0 and dy == 0:
+                            continue
+                        gx, gy, gz = tx + dx, ty + dy, tz
+                        if self.map._in_bounds(gx, gy) and self.map.is_passable(gx, gy, gz):
+                            result = player.move(self.map, gx, gy, gz, budget=movement_remaining_ft)
+                            if result["movement_used"]:
+                                print(f"  Moved adjacent to {target.name} at {result['reached']}. "
+                                      f"{result['movement_used']} ft used, "
+                                      f"{movement_remaining_ft - result['movement_used']} ft remaining.")
+                                movement_remaining_ft -= result["movement_used"]
+                                self._print_nearby_enemies(player)
+                            else:
+                                print(f"  No path to get adjacent to {target.name}.")
+                            return movement_remaining_ft
+                print(f"  No passable adjacent cell near {target.name}.")
+            print("  Usage: move <x> <y> [z] OR move <target_name>")
             return movement_remaining_ft
         try:
             x, y = int(parts[1]), int(parts[2])
@@ -393,8 +419,19 @@ class Combat:
             print("  No enemies to attack.")
             return actions_remaining
 
-        target_name = parts[1] if len(parts) > 1 else None
-        weapon_name = parts[2] if len(parts) > 2 else None
+        # Parse optional target, weapon, and lethal flag
+        target_name = None
+        weapon_name = None
+        lethal = True
+        for part in parts[1:]:
+            if part in [w.name for w in player.equipped_items if w.type == "Weapon"]:
+                weapon_name = part
+            elif part.lower() in ("lethal=false", "lethal=no", "nonlethal", "non-lethal"):
+                lethal = False
+            elif part.lower() in ("lethal=true", "lethal=yes", "true", "yes"):
+                lethal = True
+            else:
+                target_name = part
 
         target = self._resolve_target(target_name, alive_enemies)
         if target is None:
@@ -410,7 +447,7 @@ class Combat:
         player.actions_left = actions_remaining
         # Attempting an attack (hit or miss) counts for Rage
         player._attacked_this_turn = True
-        player.attack(target, weapon_name=weapon_name, lethal=self.lethal)
+        player.attack(target, weapon_name=weapon_name, lethal=lethal)
         return actions_remaining
 
     def _cmd_cast(
@@ -543,6 +580,8 @@ class Combat:
             for m in alive_enemies:
                 if m.name.lower().startswith(target_name.lower()):
                     return m
+                elif target_name.lower() in m.name.lower():
+                    return m
             print(f"  No enemy matching '{target_name}'. "
                   f"Options: {[m.name for m in alive_enemies]}")
             return None
@@ -571,10 +610,10 @@ class Combat:
             alive_enemies = self._alive_monsters()
             opts = []
             if movement_remaining_ft > 0:
-                opts.append("move <x> <y> [z]")
+                opts.append("move <x> <y> [z] OR move <target_name>")
             if actions_remaining > 0:
                 if alive_enemies:
-                    opts.append("attack [name] [weapon]")
+                    opts.append("attack [name] [weapon] [lethal=True]")
                 opts.append("dash")
                 if has_spells:
                     opts.append("cast <spell> [target]")
@@ -643,9 +682,10 @@ class Combat:
         self._roll_initiative()
 
         round_num = 0
-        while True:
+        winner = None
+        while not winner:
             round_num += 1
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             print(f"  ROUND {round_num}")
             self._print_status()
 
@@ -675,9 +715,15 @@ class Combat:
                 if not self._alive_players():
                     self._print_status()
                     print("\nAll players have fallen. The monsters win.")
-                    return "monsters"
+                    winner = "monsters"
+                    break
 
                 if not self._alive_monsters():
                     self._print_status()
                     print("\nAll monsters defeated. The players win!")
-                    return "players"
+                    winner = "players"
+                    break
+        # Clean up names by removing initiative prefixes
+        for c in self._order:
+            c.name = re.sub(r"^\d+\.\s*", "", c.name)
+        return winner
