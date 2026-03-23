@@ -442,8 +442,14 @@ class Map:
     def _neighbors(
         self, x: int, y: int, z: int,
         can_fly: bool, can_swim: bool, can_climb: bool,
+        blocked_positions: set = None,
     ) -> list[tuple[int, int, int]]:
-        """All cells reachable in a single step from (x, y, z)."""
+        """All cells reachable in a single step from (x, y, z).
+
+        blocked_positions — set of (x, y, z) cells occupied by enemy creatures
+        that cannot be entered at all (treated as impassable terrain for this move).
+        """
+        blocked_positions = blocked_positions or set()
         result = []
 
         if can_fly:
@@ -454,7 +460,9 @@ class Map:
                         if dx == dy == dz == 0:
                             continue
                         nx, ny, nz = x + dx, y + dy, z + dz
-                        if self._in_bounds(nx, ny) and self.is_passable(nx, ny, nz):
+                        if (self._in_bounds(nx, ny)
+                                and self.is_passable(nx, ny, nz)
+                                and (nx, ny, nz) not in blocked_positions):
                             result.append((nx, ny, nz))
         else:
             # Ground movement — 8 lateral neighbours at the same z
@@ -463,7 +471,9 @@ class Map:
                     if dx == dy == 0:
                         continue
                     nx, ny = x + dx, y + dy
-                    if self._in_bounds(nx, ny) and self.is_passable(nx, ny, z):
+                    if (self._in_bounds(nx, ny)
+                            and self.is_passable(nx, ny, z)
+                            and (nx, ny, z) not in blocked_positions):
                         result.append((nx, ny, z))
 
             # Vertical transitions at the same (x, y)
@@ -482,6 +492,7 @@ class Map:
 
     def find_path(
         self, creature, tx: int, ty: int, tz: int = 0,
+        blocked_creatures=None,
     ) -> Optional[list[tuple[int, int, int]]]:
         """A* shortest path from creature's position to (tx, ty, tz).
 
@@ -489,6 +500,13 @@ class Map:
           - impassable terrain (walls, closed doors, rocks, trees at z=0)
           - difficult terrain (2 movement squares to enter)
           - creature movement capabilities (fly / swim / climb)
+          - enemy creatures (blocked_creatures) whose cells cannot be entered
+
+        Ally creature cells are passable for routing but the caller is responsible
+        for ensuring the creature does not land on an occupied cell.
+
+        blocked_creatures — iterable of creatures whose positions are impassable
+          (typically enemies of the moving creature).
 
         Returns an ordered list of (x, y, z) cells to traverse, excluding the
         starting cell and including the destination, or None if unreachable.
@@ -503,6 +521,14 @@ class Map:
             return []
 
         can_fly, can_swim, can_climb = self._movement_flags(creature)
+
+        # Build set of enemy-occupied positions that cannot be traversed
+        blocked_positions: set = set()
+        if blocked_creatures:
+            for bc in blocked_creatures:
+                pos = self._creatures.get(bc)
+                if pos and pos != start:
+                    blocked_positions.add(pos)
 
         # heap: (f_score, g_score, position)
         heap: list = []
@@ -527,7 +553,7 @@ class Map:
                 continue  # stale heap entry
 
             cx, cy, cz = current
-            for nb in self._neighbors(cx, cy, cz, can_fly, can_swim, can_climb):
+            for nb in self._neighbors(cx, cy, cz, can_fly, can_swim, can_climb, blocked_positions):
                 step = self._step_cost(current, nb, nb in self.difficult_terrain)
                 new_g = g + step
                 if new_g < g_cost.get(nb, float("inf")):

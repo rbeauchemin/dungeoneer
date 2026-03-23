@@ -327,15 +327,48 @@ class Combat:
         else:
             self._monster_melee_ai(monster, target, melee or ranged, dist)
 
+    def _approach_cell(self, mover, target) -> tuple | None:
+        """Return the free cell adjacent to *target* that is closest to *mover*.
+
+        Used so monsters aim for an open cell beside a player rather than the
+        player's own (now-blocked) cell.  Returns None if no adjacent free cell
+        exists on the map.
+        """
+        tx, ty, tz = target.position
+        candidates = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = tx + dx, ty + dy
+                if not self.map._in_bounds(nx, ny):
+                    continue
+                if not self.map.is_passable(nx, ny, tz):
+                    continue
+                # Cell must be empty or already occupied only by the mover
+                occupants = self.map.get_creatures_at(nx, ny, tz)
+                if any(c is not mover for c in occupants):
+                    continue
+                dist_to_candidate = self.map.distance_ft(mover, (nx, ny, tz))
+                candidates.append((dist_to_candidate, nx, ny, tz))
+        if not candidates:
+            return None
+        candidates.sort()
+        _, nx, ny, nz = candidates[0]
+        return (nx, ny, nz)
+
     def _monster_melee_ai(self, monster, target, actions, dist):
         # Move toward target if not adjacent
         if dist > self.MELEE_REACH:
-            tx, ty, tz = target.position
-            result = monster.move(self.map, tx, ty, tz)
-            dist = self.map.distance_ft(monster, target)
-            if result["movement_used"]:
-                print(f"    {monster.name} moves toward {target.name} "
-                      f"({result['movement_used']} ft used, now {dist} ft away).")
+            cell = self._approach_cell(monster, target)
+            if cell is not None:
+                gx, gy, gz = cell
+                result = monster.move(self.map, gx, gy, gz,
+                                      blocked_creatures=self._alive_players())
+                dist = self.map.distance_ft(monster, target)
+                if result["movement_used"]:
+                    print(f"    {monster.name} moves toward {target.name} "
+                          f"({result['movement_used']} ft used, now {dist} ft away).")
 
         # Attack if now adjacent
         if dist <= self.MELEE_REACH and monster.actions_left + monster.attack_actions_left > 0:
@@ -354,14 +387,15 @@ class Combat:
         # If in melee range and no melee fallback preferred, try to back away
         if dist <= self.MELEE_REACH:
             mx, my, mz = monster.position
-            tx, ty, tz = target.position
+            tx, ty, _ = target.position
             dx = int(math.copysign(1, mx - tx)) if mx != tx else 0
             dy = int(math.copysign(1, my - ty)) if my != ty else 0
             for steps in range(3, 0, -1):
                 gx = mx + dx * steps
                 gy = my + dy * steps
                 if self.map._in_bounds(gx, gy) and self.map.is_passable(gx, gy, mz):
-                    result = monster.move(self.map, gx, gy, mz)
+                    result = monster.move(self.map, gx, gy, mz,
+                                         blocked_creatures=self._alive_players())
                     if result["movement_used"]:
                         dist = self.map.distance_ft(monster, target)
                         print(f"    {monster.name} backs away "
@@ -378,12 +412,15 @@ class Combat:
             self._monster_attack(monster, target, best["name"] if best else None)
         elif monster.actions_left > 0:
             # Too far — close the gap
-            tx, ty, tz = target.position
-            result = monster.move(self.map, tx, ty, tz)
-            dist = self.map.distance_ft(monster, target)
-            if result["movement_used"]:
-                print(f"    {monster.name} advances ({result['movement_used']} ft, "
-                      f"now {dist} ft from {target.name}).")
+            cell = self._approach_cell(monster, target)
+            if cell is not None:
+                gx, gy, gz = cell
+                result = monster.move(self.map, gx, gy, gz,
+                                      blocked_creatures=self._alive_players())
+                dist = self.map.distance_ft(monster, target)
+                if result["movement_used"]:
+                    print(f"    {monster.name} advances ({result['movement_used']} ft, "
+                          f"now {dist} ft from {target.name}).")
             # Melee fallback if now adjacent
             if dist <= self.MELEE_REACH and melee and monster.actions_left > 0:
                 monster.actions_left -= 1
@@ -413,7 +450,8 @@ class Combat:
                             continue
                         gx, gy, gz = tx + dx, ty + dy, tz
                         if self.map._in_bounds(gx, gy) and self.map.is_passable(gx, gy, gz):
-                            result = player.move(self.map, gx, gy, gz, budget=movement_remaining_ft)
+                            result = player.move(self.map, gx, gy, gz, budget=movement_remaining_ft,
+                                             blocked_creatures=self._alive_monsters())
                             if result["movement_used"]:
                                 print(f"  Moved adjacent to {target.name} at {result['reached']}. "
                                       f"{result['movement_used']} ft used, "
@@ -432,7 +470,8 @@ class Combat:
         except ValueError:
             print("  Coordinates must be integers.")
             return player, movement_remaining_ft
-        result = player.move(self.map, x, y, z, budget=movement_remaining_ft)
+        result = player.move(self.map, x, y, z, budget=movement_remaining_ft,
+                             blocked_creatures=self._alive_monsters())
         if result["blocked"]:
             coord = f"({x}, {y}{f', {z}' if z else ''})"
             print(f"  No path to {coord}.")

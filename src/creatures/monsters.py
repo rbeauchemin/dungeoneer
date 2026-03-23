@@ -299,7 +299,8 @@ class Monster:
         else:
             print(f"Miss! Roll: {total} vs AC {target_ac}")
 
-    def move(self, map_, x: int, y: int, z: int = 0, budget: float = None) -> dict:
+    def move(self, map_, x: int, y: int, z: int = 0, budget: float = None,
+             blocked_creatures=None) -> dict:
         """Move toward (x, y, z) using A* pathfinding.
 
         Step costs follow the Pythagorean theorem — moving through d axes costs
@@ -313,7 +314,10 @@ class Monster:
           - otherwise            → speed (walking, includes bonus_speed)
 
         Args:
-          budget — optional cap on feet for this call (supports split movement).
+          budget            — optional cap on feet for this call (supports split movement).
+          blocked_creatures — iterable of enemy creatures whose cells cannot be
+                              entered. Ally cells can be passed through but the
+                              creature cannot land on any occupied cell.
 
         Returns a dict:
           path              — full planned path as list of (x, y, z) cells
@@ -326,7 +330,7 @@ class Monster:
         if self.position is None:
             raise RuntimeError(f"{self.name} is not placed on a map.")
 
-        path = map_.find_path(self, x, y, z)
+        path = map_.find_path(self, x, y, z, blocked_creatures=blocked_creatures)
         avail = budget if budget is not None else self.speed
         if path is None:
             return {
@@ -354,6 +358,9 @@ class Monster:
             speed_ft = min(speed_ft, budget)
 
         cost_ft = 0.0
+        # Track the last cell that has no other creature — landing cell must be free.
+        last_free_pos = self.position
+        last_free_cost = 0.0
         prev = self.position
         final_pos = self.position
         for cell in path:
@@ -366,6 +373,14 @@ class Monster:
             cost_ft += step_ft
             final_pos = cell
             prev = cell
+            if not any(c is not self for c in map_.get_creatures_at(*cell)):
+                last_free_pos = cell
+                last_free_cost = cost_ft
+
+        # Cannot land on an occupied cell — back up to the last free cell.
+        if any(c is not self for c in map_.get_creatures_at(*final_pos)):
+            final_pos = last_free_pos
+            cost_ft = last_free_cost
 
         fx, fy, fz = final_pos
         map_.move_creature(self, fx, fy, fz)
