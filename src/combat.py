@@ -40,6 +40,7 @@ import math
 import re
 
 from src.common import roll_dice
+from src.creatures import Character
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ def _hp_bar(creature, width: int = 10) -> str:
 def _reset_turn(creature):
     """Restore per-turn action and speed resources, reset activity tracking flags."""
     creature.actions_left = 1
+    creature.attack_actions_left = 0
     if hasattr(creature, "bonus_actions_left"):
         creature.bonus_actions_left = 1
     creature.bonus_speed = 0
@@ -74,25 +76,27 @@ def _reset_turn(creature):
     creature._forced_save_this_turn = False
 
 
-def _tick_conditions(creature) -> list[str]:
+def _tick_conditions(creature, start_of_turn=False) -> list[str]:
     """Decrement duration on all timed conditions; remove any that reach 0.
 
     Returns the list of condition names that expired.
     """
     expired = []
     for effect in list(creature.active_effects):
-        if effect.duration is not None:
-            effect.duration -= 1
-            if effect.duration <= 0:
-                expired.append(effect.name)
-                effect.remove(creature)
+        if (getattr(effect, "expires_at_start", False) and start_of_turn) or not start_of_turn:
+            if effect.duration is not None:
+                effect.duration -= 1
+                if effect.duration <= 0:
+                    expired.append(effect.name)
+                    effect.remove(creature)
     return expired
 
 
 def _check_rage_end(player) -> bool:
     """Check Rage's activity conditions at end of the barbarian's turn.
 
-    Rage ends immediately if the player finished their turn without:
+    With Persistent Rage (level 15+), the rage never ends from inactivity.
+    Otherwise, Rage ends if the player finished their turn without:
       - making a weapon attack, OR
       - taking damage since their last turn started, OR
       - forcing an enemy to make a saving throw.
@@ -105,6 +109,9 @@ def _check_rage_end(player) -> bool:
     )
     if rage is None:
         return False
+    # Persistent Rage (level 15): no activity check needed
+    if getattr(player, "persistent_rage", False):
+        return False
     attacked = getattr(player, "_attacked_this_turn", False)
     took_damage = getattr(player, "_took_damage_this_turn", False)
     forced_save = getattr(player, "_forced_save_this_turn", False)
@@ -113,6 +120,35 @@ def _check_rage_end(player) -> bool:
         print(f"  {player.name}'s Rage ends — no attack, damage taken, or saving throw forced.")
         return True
     return False
+
+
+def _check_relentless_rage(player) -> bool:
+    """When a barbarian with Relentless Rage drops to 0 HP while raging, attempt a Con save.
+
+    On success, HP is set to twice the barbarian level instead of 0.
+    The DC starts at 10 and increases by 5 per use; resets on Short/Long Rest.
+
+    Returns True if Relentless Rage saved the player.
+    """
+    if player.current_hp > 0:
+        return False
+    dc = getattr(player, "relentless_rage_dc", None)
+    if dc is None:
+        return False
+    if not any(getattr(e, "name", None) == "Rage" for e in player.active_effects):
+        return False
+    print(f"  {player.name} drops to 0 HP while raging! Relentless Rage activates (DC {dc} Con save).")
+    success, _, _, _ = player.roll_check("Constitution", beat=dc, check_type="Saving Throws")
+    if success:
+        barb_level = next((cls.level for cls in player.classes if cls.name == "Barbarian"), 1)
+        player.current_hp = barb_level * 2
+        player.relentless_rage_dc = dc + 5
+        print(f"  Success! {player.name} surges with rage — HP set to {player.current_hp}. (Next DC: {player.relentless_rage_dc})")
+        return True
+    else:
+        print(f"  {player.name} fails the Relentless Rage save and goes down.")
+        player.relentless_rage_dc = dc + 5
+        return False
 
 
 _RANGED_KEYWORDS = {
@@ -267,6 +303,9 @@ class Combat:
         monster.attack(target, action_name=action_name, lethal=True)
         if target.current_hp < prev_hp:
             target._took_damage_this_turn = True
+        # Relentless Rage: intercept a killing blow while raging
+        if target.current_hp <= 0:
+            _check_relentless_rage(target)
 
     # ── Monster AI ────────────────────────────────────────────────────────────
 
@@ -299,8 +338,12 @@ class Combat:
                       f"({result['movement_used']} ft used, now {dist} ft away).")
 
         # Attack if now adjacent
-        if dist <= self.MELEE_REACH and monster.actions_left > 0:
-            monster.actions_left -= 1
+        if dist <= self.MELEE_REACH and monster.actions_left + monster.attack_actions_left > 0:
+            if monster.actions_left > 0:
+                monster.actions_left -= 1
+                monster.attack_actions_left += getattr(monster, "extra_attacks", 0)
+            else:
+                monster.attack_actions_left -= 1
             action = _best_action(actions)
             self._monster_attack(monster, target, action["name"] if action else None)
 
@@ -326,8 +369,12 @@ class Combat:
                     break
 
         # Shoot if in range
-        if dist <= max_range and monster.actions_left > 0:
-            monster.actions_left -= 1
+        if dist <= max_range and monster.actions_left > 0 + monster.attack_actions_left > 0:
+            if monster.actions_left > 0:
+                monster.actions_left -= 1
+                monster.attack_actions_left += getattr(monster, "extra_attacks", 0)
+            else:
+                monster.attack_actions_left -= 1
             self._monster_attack(monster, target, best["name"] if best else None)
         elif monster.actions_left > 0:
             # Too far — close the gap
@@ -345,11 +392,11 @@ class Combat:
 
     # ── Player turn helpers ───────────────────────────────────────────────────
 
-    def _cmd_move(self, player, parts: list, movement_remaining_ft: int) -> int:
+    def _cmd_move(self, player, parts: list, movement_remaining_ft: int) -> tuple[Character, int]:
         """Handle the ``move`` command. Returns new movement_remaining_ft."""
         if movement_remaining_ft <= 0:
             print("  No movement remaining this turn.")
-            return movement_remaining_ft
+            return player, movement_remaining_ft
         if len(parts) < 3:
             # go to space near target creature if specified, otherwise give usage message
             if len(parts) == 2:
@@ -357,7 +404,7 @@ class Combat:
                 targets = self._alive_monsters() if player in self.players else self._alive_players()
                 target = self._resolve_target(target_name, targets)
                 if target is None:
-                    return movement_remaining_ft
+                    return player, movement_remaining_ft
                 tx, ty, tz = target.position
                 # Move to an adjacent cell if possible
                 for dx in range(-1, 2):
@@ -375,16 +422,16 @@ class Combat:
                                 self._print_nearby_enemies(player)
                             else:
                                 print(f"  No path to get adjacent to {target.name}.")
-                            return movement_remaining_ft
+                            return player, movement_remaining_ft
                 print(f"  No passable adjacent cell near {target.name}.")
             print("  Usage: move <x> <y> [z] OR move <target_name>")
-            return movement_remaining_ft
+            return player, movement_remaining_ft
         try:
             x, y = int(parts[1]), int(parts[2])
             z = int(parts[3]) if len(parts) > 3 else 0
         except ValueError:
             print("  Coordinates must be integers.")
-            return movement_remaining_ft
+            return player, movement_remaining_ft
         result = player.move(self.map, x, y, z, budget=movement_remaining_ft)
         if result["blocked"]:
             coord = f"({x}, {y}{f', {z}' if z else ''})"
@@ -395,29 +442,27 @@ class Combat:
                   f"{result['movement_used']} ft used, "
                   f"{movement_remaining_ft} ft remaining.")
             self._print_nearby_enemies(player)
-        return movement_remaining_ft
+        return player, movement_remaining_ft
 
-    def _cmd_dash(self, player, actions_remaining: int, movement_remaining_ft: int) -> tuple:
+    def _cmd_dash(self, player, movement_remaining_ft: int) -> tuple[Character, int]:
         """Handle the ``dash`` command. Returns (actions_remaining, movement_remaining_ft)."""
+        actions_remaining = getattr(player, "actions_left", 0)
         if actions_remaining <= 0:
             print("  No action left to dash.")
-            return actions_remaining, movement_remaining_ft
+            return player, movement_remaining_ft
         player.dash()
         actions_remaining -= 1
         movement_remaining_ft += player.bonus_speed
         print(f"  {player.name} dashes! +{player.bonus_speed} ft "
               f"({movement_remaining_ft} ft remaining).")
-        return actions_remaining, movement_remaining_ft
+        return player, movement_remaining_ft
 
-    def _cmd_attack(self, player, parts: list, actions_remaining: int) -> int:
+    def _cmd_attack(self, player, parts: list) -> Character:
         """Handle the ``attack`` command. Returns new actions_remaining."""
         alive_enemies = self._alive_monsters()
-        if actions_remaining <= 0:
-            print("  No action left to attack.")
-            return actions_remaining
         if not alive_enemies:
             print("  No enemies to attack.")
-            return actions_remaining
+            return player
 
         # Parse optional target, weapon, and lethal flag
         target_name = None
@@ -435,29 +480,35 @@ class Combat:
 
         target = self._resolve_target(target_name, alive_enemies)
         if target is None:
-            return actions_remaining
+            return player
 
         dist = self.map.distance_ft(player, target)
         if not _has_ranged_weapon(player) and dist > self.MELEE_REACH:
             print(f"  {target.name} is {dist} ft away — out of melee reach "
                   f"({self.MELEE_REACH} ft). Move closer or equip a ranged weapon.")
-            return actions_remaining
+            return player
 
-        actions_remaining -= 1
-        player.actions_left = actions_remaining
-        # Attempting an attack (hit or miss) counts for Rage
-        player._attacked_this_turn = True
-        player.attack(target, weapon_name=weapon_name, lethal=lethal)
-        return actions_remaining
+        if player.actions_left + player.attack_actions_left > 0:
+            if player.actions_left > 0:
+                player.actions_left -= 1
+                if player.attack_actions_left == 0:
+                    # Once per turn when taking an Attack action, add any extra attacks from class features (e.g. Extra Attack)
+                    player.attack_actions_left += getattr(player, "extra_attacks", 0)
+            else:
+                player.attack_actions_left -= 1
+            # Attempting an attack (hit or miss) counts for Rage
+            player._attacked_this_turn = True
+            player.attack(target, weapon_name=weapon_name, lethal=lethal)
+        else:
+            print("No attack actions remaining.")
+        return player
 
-    def _cmd_cast(
-        self, player, parts: list, actions_remaining: int, bonus_actions_remaining: int
-    ) -> tuple[int, int]:
-        """Handle the ``cast`` command. Returns (actions_remaining, bonus_actions_remaining)."""
+    def _cmd_cast(self, player, parts: list) -> Character:
+        """Handle the ``cast`` command. Returns (player)."""
         spells = getattr(player, "spells", [])
         if len(parts) < 2:
             self._list_spells(player)
-            return actions_remaining, bonus_actions_remaining
+            return player
 
         spell_name = parts[1]
         target_name = parts[2] if len(parts) > 2 else None
@@ -468,22 +519,26 @@ class Combat:
         if spell is None:
             avail = [s.name for s in spells if s.uses_left is None or s.uses_left > 0]
             print(f"  Spell '{spell_name}' not found. Available: {avail}")
-            return actions_remaining, bonus_actions_remaining
+            return player
         if spell.uses_left == 0:
             print(f"  {spell.name} has no uses remaining.")
-            return actions_remaining, bonus_actions_remaining
+            return player
 
+        is_free = getattr(spell, "casting_time", "Action") == "Free Action"
         is_bonus = getattr(spell, "casting_time", "Action") == "Bonus Action"
-        if is_bonus and bonus_actions_remaining <= 0:
+
+        if is_free:
+            pass
+        elif is_bonus and player.bonus_actions_left <= 0:
             print("  No bonus action remaining to cast this spell.")
-            return actions_remaining, bonus_actions_remaining
-        if not is_bonus and actions_remaining <= 0:
+            return player
+        elif not is_bonus and player.actions_left <= 0:
             print("  No action remaining to cast this spell.")
-            return actions_remaining, bonus_actions_remaining
+            return player
 
         targets, ok = self._resolve_cast_targets(player, target_name)
         if not ok:
-            return actions_remaining, bonus_actions_remaining
+            return player
         # Casting at an enemy counts as forcing a saving throw for Rage purposes
         if any(t in self._alive_monsters() for t in targets):
             player._forced_save_this_turn = True
@@ -491,20 +546,20 @@ class Combat:
         print(f"  {player.name} casts {spell.name}!")
         player.cast_spell(spell.name, targets=targets)
 
-        if is_bonus:
-            bonus_actions_remaining -= 1
+        if is_free:
+            pass
+        elif is_bonus:
+            player.bonus_actions_left -= 1
         else:
-            actions_remaining -= 1
-        return actions_remaining, bonus_actions_remaining
+            player.actions_left -= 1
+        return player
 
-    def _cmd_ability(
-        self, player, parts: list, actions_remaining: int, bonus_actions_remaining: int
-    ) -> tuple[int, int]:
-        """Handle the ``ability`` command. Returns (actions_remaining, bonus_actions_remaining)."""
+    def _cmd_ability(self, player, parts: list) -> Character:
+        """Handle the ``ability`` command. Returns (player)."""
         abilities = getattr(player, "special_abilities", [])
         if len(parts) < 2:
             self._list_abilities(player)
-            return actions_remaining, bonus_actions_remaining
+            return player
 
         ability_name = parts[1]
         target_name = parts[2] if len(parts) > 2 else None
@@ -515,33 +570,39 @@ class Combat:
         if ability is None:
             avail = [a.name for a in abilities if a.uses_left is None or a.uses_left > 0]
             print(f"  Ability '{ability_name}' not found. Available: {avail}")
-            return actions_remaining, bonus_actions_remaining
+            return player
         if ability.uses_left == 0:
             print(f"  {ability.name} has no uses remaining.")
-            return actions_remaining, bonus_actions_remaining
+            return player
 
+        is_free = getattr(ability, "casting_time", "Action") == "Free Action"
         is_bonus = getattr(ability, "casting_time", "Action") == "Bonus Action"
-        if is_bonus and bonus_actions_remaining <= 0:
+
+        if is_free:
+            pass
+        elif is_bonus and player.bonus_actions_left <= 0:
             print("  No bonus action remaining to use this ability.")
-            return actions_remaining, bonus_actions_remaining
-        if not is_bonus and actions_remaining <= 0:
+            return player
+        elif not is_bonus and player.actions_left <= 0:
             print("  No action remaining to use this ability.")
-            return actions_remaining, bonus_actions_remaining
+            return player
 
         targets, ok = self._resolve_cast_targets(player, target_name)
         if not ok:
-            return actions_remaining, bonus_actions_remaining
+            return player
         if any(t in self._alive_monsters() for t in targets):
             player._forced_save_this_turn = True
 
         print(f"  {player.name} uses {ability.name}!")
         player.use_special_ability(ability.name, targets=targets)
 
-        if is_bonus:
-            bonus_actions_remaining -= 1
+        if is_free:
+            pass
+        elif is_bonus:
+            player.bonus_actions_left -= 1
         else:
-            actions_remaining -= 1
-        return actions_remaining, bonus_actions_remaining
+            player.actions_left -= 1
+        return player
 
     def _resolve_cast_targets(self, player, target_name) -> tuple[list, bool]:
         """Return (targets list, success bool). Defaults to self if no target given."""
@@ -599,9 +660,11 @@ class Combat:
             print(f"  Active conditions: {', '.join(active)}")
         self._print_nearby_enemies(player)
 
-        movement_remaining_ft = player.speed
-        actions_remaining = 1
-        bonus_actions_remaining = 1
+        movement_remaining_ft = max(player.speed, player.flying_speed)
+        player.actions_left = 1
+        player.attack_actions_left = 0
+        player.bonus_actions_left = 1
+        player.reaction_available = True
 
         has_spells = bool(getattr(player, "spells", []))
         has_abilities = bool(getattr(player, "special_abilities", []))
@@ -611,13 +674,16 @@ class Combat:
             opts = []
             if movement_remaining_ft > 0:
                 opts.append("move <x> <y> [z] OR move <target_name>")
-            if actions_remaining > 0:
+            if player.actions_left > 0:
                 if alive_enemies:
                     opts.append("attack [name] [weapon] [lethal=True]")
                 opts.append("dash")
                 if has_spells:
                     opts.append("cast <spell> [target]")
-            if bonus_actions_remaining > 0 and has_abilities:
+            elif player.attack_actions_left > 0:
+                if alive_enemies:
+                    opts.append("attack [name] [weapon] [lethal=True]")
+            if has_abilities:
                 opts.append("ability <name> [target]")
             if has_spells:
                 opts.append("spells")
@@ -626,8 +692,8 @@ class Combat:
             opts.append("pass")
 
             print(f"\n  [{player.name}] {_hp_bar(player)}"
-                  f"  actions={actions_remaining}"
-                  f"  bonus={bonus_actions_remaining}"
+                  f"  actions={player.actions_left}"
+                  f"  bonus={player.bonus_actions_left}"
                   f"  movement={movement_remaining_ft}ft")
             print(f"  Commands: {' | '.join(opts)}")
 
@@ -641,31 +707,21 @@ class Combat:
             if cmd in ("pass", "skip", "end", "done"):
                 break
             elif cmd == "move":
-                movement_remaining_ft = self._cmd_move(player, parts, movement_remaining_ft)
+                player, movement_remaining_ft = self._cmd_move(player, parts, movement_remaining_ft)
             elif cmd == "dash":
-                actions_remaining, movement_remaining_ft = self._cmd_dash(
-                    player, actions_remaining, movement_remaining_ft
-                )
+                player, movement_remaining_ft = self._cmd_dash(player, movement_remaining_ft)
             elif cmd == "attack":
-                actions_remaining = self._cmd_attack(player, parts, actions_remaining)
+                player = self._cmd_attack(player, parts)
             elif cmd == "cast":
-                actions_remaining, bonus_actions_remaining = self._cmd_cast(
-                    player, parts, actions_remaining, bonus_actions_remaining
-                )
+                player = self._cmd_cast(player, parts)
             elif cmd == "ability":
-                actions_remaining, bonus_actions_remaining = self._cmd_ability(
-                    player, parts, actions_remaining, bonus_actions_remaining
-                )
+                player = self._cmd_ability(player, parts)
             elif cmd in ("spells", "spell"):
                 self._list_spells(player)
             elif cmd in ("abilities",):
                 self._list_abilities(player)
             else:
                 print(f"  Unknown command: '{cmd}'  — try: {' | '.join(opts)}")
-
-            # Auto-end when all resources are spent
-            if actions_remaining <= 0 and movement_remaining_ft <= 0 and bonus_actions_remaining <= 0:
-                break
 
     # ── Main loop ─────────────────────────────────────────────────────────────
 
@@ -698,7 +754,8 @@ class Combat:
                     continue
 
                 _reset_turn(combatant)
-
+                # Tick timed conditions that expire at the start of the turn (e.g. Reckless Attack)
+                expired = _tick_conditions(combatant, start_of_turn=True)
                 if combatant in self.players:
                     self._player_turn(combatant)
                     # Rage end-condition check: must have acted this turn

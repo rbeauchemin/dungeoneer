@@ -16,12 +16,32 @@ class Class:
             "Skills": []
         }
 
+    def select_skills(self, character, choices, **kwargs):
+        counter = {}
+        for skill in choices:
+            counter[skill] = counter.get(skill, 0) + 1
+        if len(counter) == 1:
+            print("You may not select the same skill twice. Please select again.")
+            character.todo += [
+                {
+                    "Text": "Choose two skills to gain proficiency in.",
+                    "Options": list(set(self.proficiencies["Skills"]) - set(character.proficiencies["Skills"])),
+                    "Function": self.select_skills,
+                    "Choices": 2,
+                    "AllowSame": False
+                }
+            ]
+            return
+        else:
+            for skill in counter:
+                character.proficiencies["Skills"].append(skill)
+        return character
+
     def apply_to_character(self, character: Character):
         character.proficiencies["Armor"] += self.proficiencies["Armor"]
         character.proficiencies["Weapons"] += self.proficiencies["Weapons"]
         character.proficiencies["Tools"] += self.proficiencies["Tools"]
         character.proficiencies["Saving Throws"] += self.proficiencies["Saving Throws"]
-        character.proficiencies["Skills"] += self.proficiencies["Skills"]
         return character
 
     def level_up(self, character: Character):
@@ -31,6 +51,55 @@ class Class:
             if cls.name == self.name:
                 character.classes[i] = self
                 break
+        if self.level in [4, 8, 12, 16]:
+            character.todo.append({
+                "Text": "Choose an Ability Score Improvement or Feat.",
+                "Options": ["Ability Score Improvement", "Feat"],
+                "Function": self.select_ability_score_improvement_or_feat,
+            })
+            
+        return character
+
+    def select_ability_score_improvement_or_feat(self, character, choices, **kwargs):
+        if choices[0] == "Ability Score Improvement":
+            character.todo.append({
+                "Text": "Choose two ability scores to increase by 1 (or one ability score to increase by 2).",
+                "Options": ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"],
+                "Function": self.select_ability_score_improvement,
+                "Choices": 2,
+                "AllowSame": True,
+            })
+        else:
+            # TODO: Add correct feats based on character traits and whether they meet feat requirements
+            character.todo.append({
+                "Text": "Choose a feat.",
+                "Options": ["Feat 1", "Feat 2", "Feat 3"], # Placeholder, should be list of feats
+                "Function": self.select_feat,
+            })
+
+    def select_ability_score_improvement(self, character, choices, **kwargs):
+        counter = {}
+        current_con = None
+        if "Constitution" in choices:
+            current_con = character.get_ability_score("Constitution")
+        for ability in choices:
+            counter[ability] = counter.get(ability, 0) + 1
+        if len(counter) == 1:
+            ability = choices[0]
+            character.ability_scores[ability] += 2
+        else:
+            for ability in counter:
+                character.ability_scores[ability] += 1
+        if current_con and character.get_ability_score("Constitution") > current_con:
+            # If Constitution increased, also increase max HP and current HP by 1 per character level
+            hp_increase = character.level
+            character.max_hp += hp_increase
+            character.current_hp += hp_increase
+        return character
+
+    def select_feat(self, character, choices, **kwargs):
+        feat = choices[0]
+        character.feats.append(feat)
         return character
 
 

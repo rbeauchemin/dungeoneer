@@ -59,6 +59,7 @@ class Condition:
         self.description = description
         # duration in rounds; None means indefinite
         self.duration = duration
+        self.expires_at_start = False  # if True, expires at start of turn instead of end (e.g. Reckless Attack)
 
     def apply(self, character: Character):
         """Add this condition to the creature's active_effects (idempotent)."""
@@ -401,6 +402,94 @@ class ArmorTooHeavy(Condition):
             "You lack the strength to move effectively in your armor.",
             duration,
         )
+
+
+# ── Barbarian class conditions ───────────────────────────────────────────────
+
+class DangerSense(Condition):
+    """Advantage on Dexterity saving throws (unless Incapacitated)."""
+    adv_saving_throws = ("Dexterity",)
+
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Danger Sense",
+            "You have Advantage on Dexterity saving throws unless you have the Incapacitated condition.",
+            duration,
+        )
+
+
+class FeralInstinct(Condition):
+    """Advantage on all Initiative rolls."""
+    adv_initiative = 1
+
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Feral Instinct",
+            "You have Advantage on all Initiative rolls.",
+            duration,
+        )
+
+
+class FastMovement(Condition):
+    """Speed increases by 10 feet while not wearing Heavy armor."""
+    speed_delta = 10
+
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Fast Movement",
+            "Your speed increases by 10 feet while you aren't wearing Heavy armor.",
+            duration,
+        )
+
+
+class RecklessAttacking(Condition):
+    """Advantage on Strength attack rolls until end of turn; enemies have advantage against you until start of next turn."""
+    adv_attack = 1
+    adv_to_be_attacked = 1
+
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Reckless Attacking",
+            "You have Advantage on attack rolls using Strength, but attack rolls against you also have Advantage until the start of your next turn.",
+            duration,
+        )
+        self.expires_at_start = True
+
+
+class Hamstrung(Condition):
+    """Speed reduced by 15 feet from a Brutal Strike Hamstring Blow."""
+    speed_delta = -15
+
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Hamstrung",
+            "Your Speed is reduced by 15 feet from a Hamstring Blow.",
+            duration,
+        )
+
+
+class IndomitableMight(Condition):
+    """When a Strength check total is less than the Strength score, use the score instead."""
+    indomitable_might = True
+
+    def __init__(self, duration: Optional[int] = None):
+        super().__init__(
+            "Indomitable Might",
+            "If your total for a Strength check or Strength saving throw is less than your Strength score, you can use that score in place of the total.",
+            duration,
+        )
+
+
+class BrutalStrike(Condition):
+    """Next weapon hit deals bonus damage dice and applies a Brutal Strike effect."""
+
+    def __init__(self, dice: int = 1, duration: Optional[int] = None):
+        super().__init__(
+            "Brutal Strike",
+            f"Your next weapon hit deals {dice}d10 extra damage and you may apply one Brutal Strike effect (Forceful Blow or Hamstring Blow).",
+            duration,
+        )
+        self.brutal_strike_dice = dice
 
 
 class ProficiencyGappedArmor(Condition):

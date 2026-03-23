@@ -247,24 +247,35 @@ class Character:
             w *= getattr(e, "weight_multiplier", 1)
         return w
 
-    def level_up(self, class_):
+    def level_up(self, class_, roll_for_health=False):
         from src.classes import Class
+        idx = -1
         if class_ not in [cls.name for cls in self.classes]:
             self.classes.append(Class(name=class_, level=1))
         else:
-            for cls in self.classes:
+            for idx, cls in enumerate(self.classes):
                 if cls.name == class_:
                     cls.level_up(self)
+                    break
+        class_leveling = self.classes[idx]
         if self.species.species == "Dwarf":
             self.max_hp += 1
+            self.current_hp += 1
         if self.feats and "Tough" in [feat.name for feat in self.feats]:
             self.max_hp += 2
-        # ADD HP BASED ON CLASS HIT DIE
+            self.current_hp += 2
+        if roll_for_health:
+            hp = roll_dice(1, class_leveling.hit_dice) + self.get_ability_bonus("Constitution")
+            self.max_hp += hp
+            self.current_hp += hp
+        else:
+            hp = (class_leveling.hit_dice // 2) + 1 + self.get_ability_bonus("Constitution")
+            self.max_hp += hp
+            self.current_hp += hp
         self.level += 1
         self.proficiency_bonus = 2 + (self.level - 1) // 4
         self.species.proficiency_bonus = self.proficiency_bonus
         self.species.level = self.level
-        # TODO: Add class features, spells, and equipment based on new level and which class is being leveled up
 
     def add_condition(self, condition):
         if isinstance(condition, list):
@@ -472,6 +483,15 @@ class Character:
             pass
         if success:
             total = roll_dice(dice_split[0], dice_split[1]) + ability_bonus
+            # Brutal Strike bonus damage
+            brutal = next(
+                (e for e in self.active_effects if getattr(e, "name", None) == "Brutal Strike"), None
+            )
+            if brutal is not None:
+                extra = roll_dice(brutal.brutal_strike_dice, 10)
+                print(f"  Brutal Strike adds {extra} damage ({brutal.brutal_strike_dice}d10)!")
+                total += extra
+                brutal.remove(self)
             print(f"The total damage done is {total}")
             if weapon.damage_type in target.resistances:
                 print("The attack doesn't seem very effective.")
@@ -572,9 +592,11 @@ class Character:
             advantage_counter -= self.disadvantages[check_type]
         if advantage_counter > 0:
             roll2 = roll_dice(1, 20)
+            print(f"Rolling with advantage: {roll} and {roll2}")
             roll = max(roll, roll2)
         elif advantage_counter < 0:
             roll2 = roll_dice(1, 20)
+            print(f"Rolling with disadvantage: {roll} and {roll2}")
             roll = min(roll, roll2)
         if check_type in self.proficiencies and ability in self.proficiencies[check_type]:
             bonus += self.proficiency_bonus
@@ -586,6 +608,14 @@ class Character:
             halfling_luck="Halfling Luck" in self.special_traits,
             tie_succeeds=tie_succeeds
         )
+        # Indomitable Might: Strength checks/saves use Strength score as floor
+        if check_type in ("Abilities", "Saving Throws") and ability == "Strength":
+            if any(getattr(e, "indomitable_might", False) for e in self.active_effects):
+                str_score = self.ability_scores.get("Strength", 10)
+                if total < str_score:
+                    print(f"  Indomitable Might raises total from {total} to {str_score}.")
+                    total = str_score
+                    success = beat is None or total >= beat
         return success, total, crit_fail, crit_success
 
     def rest(self, long=False):
