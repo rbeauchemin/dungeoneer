@@ -30,10 +30,10 @@ class Background:
                 "AllowSame": True
             },
             {
-                "Text": f"Select either 50 gold or starting equipment ({self.starting_equipment_details}).",
+                "Text": f"Select gold (50) or starting equipment ({self.starting_equipment_details}).",
                 "Options": [
-                    "50 gold",
-                    "Starting Equipment"
+                    "Starting Equipment",
+                    "Gold"
                 ],
                 "Function": self.grant_starting_equipment
             }
@@ -88,7 +88,7 @@ class Background:
 
 
 class Acolyte(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Intelligence", "Wisdom", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 gold")
         self.description = "You have spent your life in the service of a temple to a specific god or pantheon of gods. You act as an intermediary between the realm of the holy and the mortal world, performing sacred rites and offering sacrifices in order to conduct worshipers into the presence of the divine."
@@ -97,7 +97,7 @@ class Acolyte(Background):
         self.feats += [MagicInitiateCleric]
 
     def grant_starting_equipment(self, character, choices, **kwargs):
-        if "50 gold" in choices:
+        if "Gold" in choices:
             character.gold += 50
         else:
             character.add_item([
@@ -112,7 +112,7 @@ class Acolyte(Background):
 
 
 class Artisan(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Dexterity", "Intelligence"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Artisan's tools you are proficient in, 2 pouches, Traveler's Clothes, and 32 gold")
         self.todo += [
@@ -150,7 +150,7 @@ class Artisan(Background):
         return character
 
     def grant_starting_equipment(self, character, choices, **kwargs):
-        if "50 gold" in choices:
+        if "Gold" in choices:
             character.gold += 50
         else:
             if self.proficiencies["Tools"]:
@@ -161,7 +161,7 @@ class Artisan(Background):
 
 
 class Charlatan(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Dexterity", "Constitution", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Forgery Kit, Costume, Fine Clothes, 15 gold")
         self.description = "Once you were old enough to order an ale, you soon had a favorite stool in every tavern within ten miles of where you were born. As you traveled the circuit from public house to watering hole, you learned to prey on unfortunates who were in the market for a comforting lie or two - perhaps a sham potion or forged ancestry records."
@@ -170,7 +170,7 @@ class Charlatan(Background):
         self.feats += [Skilled()]
 
     def grant_starting_equipment(self, character, choices, **kwargs):
-        if "50 gold" in choices:
+        if "Gold" in choices:
             character.gold += 50
         else:
             character.add_item([ForgeryKit(), Costume(), FineClothes()])
@@ -179,7 +179,7 @@ class Charlatan(Background):
 
 
 class Criminal(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Dexterity", "Constitution", "Intelligence"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 gold")
         self.description = "You eked out a living in dark alleyways, cutting purses or burgling shops. Perhaps you were part of a small gang of like-minded wrongdoers who looked out for each other. Or maybe you were a lone wolf, fending for yourself against the local thieves' guild and more fearsome lawbreakers."
@@ -188,7 +188,7 @@ class Criminal(Background):
         self.feats += [Alert()]
 
     def grant_starting_equipment(self, character, choices, **kwargs):
-        if "50 gold" in choices:
+        if "Gold" in choices:
             character.gold += 50
         else:
             character.add_item([
@@ -200,7 +200,7 @@ class Criminal(Background):
 
 
 class Entertainer(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Dexterity", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Musical Instrument you are proficient in, 2 Costumes, Mirror, Perfume, Traveler's Clothes, 11 gold")
         self.description = "You spent much of your youth following roving fairs and carnivals, performing odd jobs for musicians and acrobats in exchange for lessons. You may have learned how to walk a tightrope, how to play a lute in a distinct style, or how to recite poetry with impeccable diction. To this day, you thrive on applause and long for the stage."
@@ -221,7 +221,7 @@ class Entertainer(Background):
         return character
 
     def grant_starting_equipment(self, character, choices, **kwargs):
-        if "50 gold" in choices:
+        if "Gold" in choices:
             character.gold += 50
         else:
             if self.proficiencies["Tools"]:
@@ -232,20 +232,13 @@ class Entertainer(Background):
 
 
 class Farmer(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Constitution", "Wisdom"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Sickle, Carpenter's Tools, Healer's Kit, Iron Pot, Shovel, Traveler's Clothes, 30 gold")
         self.description = "You grew up close to the land. Years tending animals and cultivating the earth rewarded you with patience and good health. You have a keen appreciation for nature's bounty alongside a healthy respect for nature's wrath."
         self.proficiencies["Skills"] = ["Animal Handling", "Nature"]
         self.proficiencies["Tools"] = ["Carpenter's Tools"]
         self.feats += [Tough()]
-        self.todo += [
-            {
-                "Text": "Select either 50 gold or starting equipment ().",
-                "Options": ["Starting Equipment", "50 gold"],
-                "Function": self.grant_starting_equipment
-            }
-        ]
 
     def grant_starting_equipment(self, character, choices, **kwargs):
         if "50 gold" in choices:
@@ -260,7 +253,7 @@ class Farmer(Background):
 
 
 class Guard(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Intelligence", "Wisdom"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Spear, Light Crossbow, 20 Bolts, Gaming Set (same as above), Hooded Lan-tern, Manacles, Quiver, Traveler's Clothes, 12 gold")
         self.description = "Your feet ache when you remember the countless hours you spent at your post in the tower. You were trained to keep one eye looking outside the wall, watching for marauders sweeping from the nearby forest, and your other eye looking inside the wall, searching for cutpurses and troublemakers."
@@ -295,7 +288,7 @@ class Guard(Background):
 
 
 class Hermit(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Constitution", "Wisdom", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Quarterstaff, Herbalism Kit, Bedroll, Book (philosophy), Lamp, Oil (3 flasks), Traveler's Clothes, 16 gold")
         self.description = "You spent your early years secluded in a hut or monastery located well beyond the outskirts of the nearest settlement. In those days, your only companions were the creatures of the forest and those who would occasionally visit to bring news of the outside world and supplies. The solitude allowed you to spend many hours pondering the mysteries of creation."
@@ -317,7 +310,7 @@ class Hermit(Background):
 
 
 class Guide(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Dexterity", "Constitution", "Wisdom"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Shortbow, 20 Arrows, Cartographer's Tools, Bedroll, Quiver, Tent, Traveler's Clothes, 3 gold")
         self.description = "You came of age outdoors, far from settled lands. Your home was anywhere you chose to spread your bedroll. There are wonders in the wilderness — strange monsters, pristine forests and streams, overgrown ruins of great halls once trod by giants - and you learned to fend for yourself as you explored them. From time to time, you guided friendly nature priests who instructed you in the fundamentals of channeling the magic of the wild."
@@ -339,7 +332,7 @@ class Guide(Background):
 
 
 class Merchant(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Constitution", "Intelligence", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Navigator's Tools, 2 Pouches, Traveler's Clothes, 22 gold")
         self.description = "You were apprenticed to a trader, caravan master, or shopkeeper, learning the fundamentals of commerce. You traveled broadly, and you earned a living by buying and selling the raw materials artisans need to practice their craft or finished works from such crafters. You might have transported goods from one place to another (by ship, wagon, or cara-van) or bought them from traveling traders and sold them in your own shop."
@@ -357,7 +350,7 @@ class Merchant(Background):
 
 
 class Noble(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Intelligence", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Gaming Set, Fine Clothes, Perfume, 29 gold")
         self.description = "You were raised in a castle, surrounded by wealth, power, and privilege. Your family of minor aristocrats ensured that you received a first-class education, some of which you appreciated and some of which you resented. Your time in the castle, especially the many hours you spent observing your family at court, also taught you a great deal about leadership."
@@ -388,7 +381,7 @@ class Noble(Background):
 
 
 class Sage(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Constitution", "Intelligence", "Wisdom"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Quarterstaff, Calligrapher's Supplies, Book (history), Parchment (8 sheets), Robe, 8 gold")
         self.description = "You spent your formative years traveling between manors and monasteries, performing various odd jobs and services in exchange for access to their libraries. You whiled away many a long evening studying books and scrolls, learning the lore of the multiverse - even the rudiments of magic - and your mind yearns for more."
@@ -410,7 +403,7 @@ class Sage(Background):
 
 
 class Sailor(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Dexterity", "Wisdom"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Dagger, Navigator's Tools, Rope, Traveler's Clothes, 20 gold")
         self.description = "You lived as a seafarer, wind at your back and decks swaying beneath your feet. You've perched on barstools in more ports of call than you can remember, faced mighty storms, and swapped stories with folk who live beneath the waves."
@@ -428,7 +421,7 @@ class Sailor(Background):
 
 
 class Scribe(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Dexterity", "Intelligence", "Wisdom"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Calligrapher's Supplies, Fine Clothes, Lamp, Oil (3 flasks), Parchment (12 sheets), 23 gold")
         self.description = "You spent formative years in a scriptorium, a monastery dedicated to the preservation of knowledge, or a government agency, where you learned to write with a clear hand and produce finely written texts. Perhaps you scribed government documents or copied tomes of literature. You might have some skill as a writer of poetry, narrative, or scholarly research. Above all, you have a careful attention to detail, helping you avoid introducing mistakes to the documents you copy and create."
@@ -449,7 +442,7 @@ class Scribe(Background):
 
 
 class Soldier(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Strength", "Dexterity", "Constitution"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="Spear, Shortbow, 20 Arrows, Gaming Set , Healer's Kit, Quiver, Traveler's Clothes, 14 gold")
         self.description = "You began training for war as soon as you reached adulthood and carry precious few memories of life before you took up arms. Battle is in your blood. Sometimes you catch yourself reflexively performing the basic fighting exercises you learned first. Eventually, you put that training to use on the battlefield, protecting the realm by waging war."
@@ -483,7 +476,7 @@ class Soldier(Background):
 
 
 class Wayfarer(Background):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.ability_scores = ["Dexterity", "Wisdom", "Charisma"]
         super().__init__(ability_scores=self.ability_scores, starting_equipment_details="2 Daggers, Thieves' Tools, Gaming Set of choice, Bedroll, 2 Pouches, Traveler's Clothes, 16 gold")
         self.description = "You grew up on the streets surrounded by similarly ill-fated castoffs, a few of them friends and a few of them rivals. You slept where you could and did odd jobs for food. At times, when the hunger became unbearable, you resorted to theft. Still, you never lost your pride and never abandoned hope. Fate is not yet finished with you."
