@@ -175,6 +175,52 @@ class Stairs(MapObject):
         self.destination = destination
 
 
+# ── MapZone ───────────────────────────────────────────────────────────────────
+
+class MapZone:
+    """A persistent area-of-effect region on the map.
+
+    Callbacks receive ``(creature)`` as their only argument.
+    ``on_entry``  — fired when a creature enters the zone.
+    ``on_exit``   — fired when a creature leaves the zone.
+    ``on_turn``   — fired at the end of each creature's turn while inside.
+
+    ``duration`` is in rounds; ``None`` means the zone persists until explicitly
+    removed with ``Map.remove_zone``.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        x: float,
+        y: float,
+        z: float = 0,
+        radius_ft: float = 5,
+        duration: Optional[int] = None,
+        created_by=None,
+        on_entry=None,
+        on_exit=None,
+        on_turn=None,
+    ):
+        self.name = name
+        self.x = x
+        self.y = y
+        self.z = z
+        self.radius_ft = radius_ft
+        self.duration = duration
+        self.created_by = created_by
+        self.on_entry = on_entry
+        self.on_exit = on_exit
+        self.on_turn = on_turn
+        self._occupants: set = set()   # creatures currently tracked inside
+
+    def __repr__(self):
+        return (
+            f"MapZone({self.name!r}, pos=({self.x}, {self.y}, {self.z}), "
+            f"r={self.radius_ft}ft, duration={self.duration})"
+        )
+
+
 # ── Map ───────────────────────────────────────────────────────────────────────
 
 class Map:
@@ -214,6 +260,7 @@ class Map:
         self._objects: dict = {}          # (x, y, z) -> list[MapObject]
         self._creature_grid: dict = {}    # (x, y, z) -> list[creature]
         self.difficult_terrain: set = set()  # set of (x, y, z) cells
+        self._zones: list = []            # active MapZone instances
 
     # ── Bounds ────────────────────────────────────────────────────────────────
 
@@ -271,6 +318,74 @@ class Map:
 
     # ── Creature placement ────────────────────────────────────────────────────
 
+    # ── Zone management ───────────────────────────────────────────────────────
+
+    def add_zone(self, zone: MapZone) -> MapZone:
+        """Add a MapZone to this map and return it."""
+        self._zones.append(zone)
+        return zone
+
+    def remove_zone(self, zone: MapZone) -> bool:
+        """Remove a zone. Returns True if it was present."""
+        if zone in self._zones:
+            self._zones.remove(zone)
+            return True
+        return False
+
+    def get_zones_containing(self, creature) -> list:
+        """Return all active zones whose radius includes the creature's position."""
+        pos = self._creatures.get(creature)
+        if pos is None:
+            return []
+        cx, cy, cz = pos
+        result = []
+        for zone in self._zones:
+            dx = (cx - zone.x) * self.cell_size
+            dy = (cy - zone.y) * self.cell_size
+            dz = (cz - zone.z) * self.cell_size
+            if math.sqrt(dx * dx + dy * dy + dz * dz) <= zone.radius_ft:
+                result.append(zone)
+        return result
+
+    def tick_zones(self) -> list:
+        """Decrement zone durations by one round; remove and return expired zones."""
+        expired = []
+        for zone in list(self._zones):
+            if zone.duration is not None:
+                zone.duration -= 1
+                if zone.duration <= 0:
+                    expired.append(zone)
+                    self._zones.remove(zone)
+        return expired
+
+    def check_zone_transitions(self, creature) -> tuple:
+        """Compare current zone membership against tracked occupants.
+
+        Fires ``on_entry`` for newly entered zones and ``on_exit`` for
+        newly exited ones.  Updates each zone's ``_occupants`` set.
+
+        Returns ``(entered, exited)`` as sets of MapZone objects.
+        """
+        current = set(self.get_zones_containing(creature))
+        previous = {z for z in self._zones if creature in z._occupants}
+
+        entered = current - previous
+        exited = previous - current
+
+        for zone in entered:
+            zone._occupants.add(creature)
+            if zone.on_entry:
+                zone.on_entry(creature)
+
+        for zone in exited:
+            zone._occupants.discard(creature)
+            if zone.on_exit:
+                zone.on_exit(creature)
+
+        return entered, exited
+
+    # ── Creature placement ────────────────────────────────────────────────────
+
     def place_creature(self, creature, x: int, y: int, z: int = 0):
         """Place or teleport a creature to (x, y, z). Sets creature.position."""
         self._check_bounds(x, y)
@@ -285,6 +400,7 @@ class Map:
         self._creatures[creature] = key
         self._creature_grid.setdefault(key, []).append(creature)
         creature.position = key
+        creature._map = self
 
     def remove_creature(self, creature) -> bool:
         """Remove a creature from the map. Sets creature.position = None."""
@@ -297,6 +413,7 @@ class Map:
         if not cell:
             self._creature_grid.pop(key, None)
         creature.position = None
+        creature._map = None
         return True
 
     def move_creature(self, creature, x: int, y: int, z: int = 0):

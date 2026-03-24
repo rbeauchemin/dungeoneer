@@ -1,6 +1,6 @@
 from typing import Literal
 from src.common import roll_dice
-from src.spells import Spell, Light
+from src.spells import Spell, Light, _d, _deal_damage, _spell_save, _aoe_targets, _targets_list, _cantrip_dice
 
 
 class Species:
@@ -188,6 +188,17 @@ class Dragonborn(Species):
             self.resistances = [self.breath_weapon_damage_type]
         else:
             raise Exception(f"Invalid ancestry provided. Please select a valid draconic ancestry from {list(ancestries.keys())}.")
+        dmg_type = self.breath_weapon_damage_type
+
+        def _breath_cast(char, targets, _dmg_type=dmg_type, radius=15):
+            dc = 8 + char.get_ability_bonus('Constitution') + char.proficiency_bonus
+            n = _cantrip_dice(char)
+            ts = _aoe_targets(char, char, radius, include_caster=False) or _targets_list(targets)
+            for t in ts:
+                dmg = _d(n, 10)
+                saved, _ = _spell_save(char, t, 'Dexterity', dc=dc)
+                _deal_damage(t, dmg // 2 if saved else dmg, _dmg_type)
+
         self.special_abilities = [
             Spell(
                 name="Breath Weapon: Cone",
@@ -200,7 +211,7 @@ class Dragonborn(Species):
                 save="Dexterity",
                 cooldown="Long Rest",
                 uses_left=self.breaths_left,
-                cast=lambda char, targets: self.cast_breath_weapon(char, targets)
+                cast=lambda char, targets: _breath_cast(char, targets, radius=15),
             ),
             Spell(
                 name="Breath Weapon: Line",
@@ -213,7 +224,7 @@ class Dragonborn(Species):
                 save="Dexterity",
                 cooldown="Long Rest",
                 uses_left=self.breaths_left,
-                cast=lambda char, targets: self.cast_breath_weapon(char, targets)
+                cast=lambda char, targets: _breath_cast(char, targets, radius=30),
             ),
             Spell(
                 name="Draconic Flight",
@@ -227,29 +238,6 @@ class Dragonborn(Species):
                 cast=lambda char, targets: self.cast_draconic_flight(char, [char])
             )
         ]
-
-    def cast_breath_weapon(self, char, targets, type_="Cone"):
-        if char.level < 5:
-            number_of_dice = 1
-        elif char.level < 11:
-            number_of_dice = 2
-        elif char.level < 17:
-            number_of_dice = 3
-        damage_amount = roll_dice(number_of_dice, 10)
-        print(f"{char.name} uses Breath Weapon ({type_}) dealing {damage_amount} {self.breath_weapon_damage_type} in the area.")
-        for target in targets:
-            save, _, _, _ = target.roll_check("Dexterity", beat=8 + char.get_ability_bonus("Constitution") + char.proficiency_bonus, check_type="Saving Throws")
-            if save:
-                specific_damage = damage_amount // 2
-                print(f"{target.name} succeeded on the saving throw and takes half damage ({specific_damage} instead of {damage_amount}).")
-                target.current_hp = max(0, target.current_hp - (damage_amount // 2))
-                if target.current_hp == 0:
-                    print(f"{target.name} has been defeated.")
-            else:
-                print(f"{target.name} failed the saving throw and takes full damage ({damage_amount}).")
-                target.current_hp = max(0, target.current_hp - damage_amount)
-                if target.current_hp == 0:
-                    print(f"{target.name} has been defeated.")
 
     def cast_draconic_flight(self, char, targets):
         if char.level < 5:

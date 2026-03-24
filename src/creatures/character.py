@@ -25,6 +25,7 @@ class Character:
         self.gold = 0
         self.active_effects = []
         self.position = None   # set by Map.place_creature / Map.move_creature
+        self._map = None       # set by Map.place_creature
         self.inventory = []
         self.inventory += equipment
         self.death_saves = {

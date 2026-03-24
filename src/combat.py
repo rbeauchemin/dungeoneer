@@ -795,6 +795,8 @@ class Combat:
                 _reset_turn(combatant)
                 # Tick timed conditions that expire at the start of the turn (e.g. Reckless Attack)
                 expired = _tick_conditions(combatant, start_of_turn=True)
+                # Zone entry/exit check at start of turn
+                self.map.check_zone_transitions(combatant)
                 if combatant in self.players:
                     self._player_turn(combatant)
                     # Rage end-condition check: must have acted this turn
@@ -806,6 +808,10 @@ class Combat:
                 expired = _tick_conditions(combatant)
                 for name in expired:
                     print(f"  {combatant.name}'s {name} expires.")
+                # Zone on_turn callbacks at end of turn
+                for zone in self.map.get_zones_containing(combatant):
+                    if zone.on_turn:
+                        zone.on_turn(combatant)
 
                 # Check for end-of-combat after every turn
                 if not self._alive_players():

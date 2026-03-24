@@ -109,6 +109,7 @@ class Monster:
         self.description = kwargs.get("description", "")
         self.active_effects = []
         self.position = None   # set by Map.place_creature / Map.move_creature
+        self._map = None       # set by Map.place_creature
         self._base_advantages = dict(_DEFAULT_PARAMS)
         self._base_disadvantages = dict(_DEFAULT_PARAMS)
         self._base_auto_fail = dict(_DEFAULT_PARAMS)
@@ -231,6 +232,57 @@ class Monster:
 
     def get_ability_bonus(self, ability):
         return (self.ability_scores[ability] - 10) // 2
+
+    def roll_check(self, ability, beat=None, bonus=0, check_type=None,
+                   advantage_counter=0, critical_threshold=20,
+                   failure_threshold=1, tie_succeeds=True):
+        """Roll an ability check, saving throw, or attack roll.
+
+        Returns (success, total, crit_fail, crit_success).
+        """
+        base_bonus = bonus
+        if ability:
+            base_bonus += self.get_ability_bonus(ability)
+            if check_type == 'Saving Throws' and ability in self.saving_throw_proficiencies:
+                base_bonus += self.proficiency_bonus
+        base_bonus += self.d20_modifier
+
+        # Resolve advantage/disadvantage
+        adv = advantage_counter
+        for e in self.active_effects:
+            if check_type == 'Attack':
+                adv += getattr(e, 'adv_attack', 0) - getattr(e, 'disadv_attack', 0)
+            elif check_type == 'Saving Throws' and ability:
+                if ability in getattr(e, 'adv_saving_throws', ()):
+                    adv += 1
+                if ability in getattr(e, 'disadv_saving_throws', ()):
+                    adv -= 1
+
+        if adv > 0:
+            roll = max(roll_dice(1, 20), roll_dice(1, 20))
+        elif adv < 0:
+            roll = min(roll_dice(1, 20), roll_dice(1, 20))
+        else:
+            roll = roll_dice(1, 20)
+
+        crit_fail = roll <= failure_threshold
+        crit_success = roll >= critical_threshold
+        total = roll + base_bonus
+        if beat is None:
+            success = True
+        elif crit_success:
+            success = True
+        elif crit_fail:
+            success = False
+        elif tie_succeeds:
+            success = total >= beat
+        else:
+            success = total > beat
+        if ability:
+            save_label = f'{ability} {check_type or "check"}'
+            result_str = 'success' if success else 'fail'
+            print(f'  {self.name} {save_label}: {roll}+{base_bonus}={total} vs DC {beat} — {result_str}')
+        return success, total, crit_fail, crit_success
 
     def add_condition(self, condition):
         if condition in self.condition_immunities:

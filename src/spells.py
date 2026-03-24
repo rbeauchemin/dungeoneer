@@ -1,5 +1,312 @@
 from src.items.items import Item
 
+# ── Spell cast helpers ─────────────────────────────────────────────────────
+from src.common import roll_dice as _roll_dice
+from src.conditions import (
+    Blinded, Charmed, Charming, Dead, Deafened, Frightened, Grappled,
+    Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone,
+    Restrained, Stunned, Unconscious,
+)
+
+# Registry — populated at bottom of this file; read by Spell.__init__
+_SPELL_CAST_REGISTRY: dict = {}
+
+
+def _spell_save_dc(caster):
+    ability = getattr(caster, 'spellcasting_ability', 'Intelligence')
+    return 8 + caster.proficiency_bonus + caster.get_ability_bonus(ability)
+
+
+def _spell_atk_bonus(caster):
+    ability = getattr(caster, 'spellcasting_ability', 'Intelligence')
+    return caster.proficiency_bonus + caster.get_ability_bonus(ability)
+
+
+def _caster_level(caster):
+    total = sum(getattr(c, 'level', 1) for c in getattr(caster, 'classes', []))
+    return total or 1
+
+
+def _cantrip_dice(caster):
+    lvl = _caster_level(caster)
+    return 4 if lvl >= 17 else 3 if lvl >= 11 else 2 if lvl >= 5 else 1
+
+
+def _d(n, sides):
+    return sum(_roll_dice(1, sides) for _ in range(max(n, 0)))
+
+
+def _deal_damage(target, amount, damage_type, lethal=True):
+    resistances = list(getattr(target, 'resistances', []))
+    immunities = list(getattr(target, 'immunities', []))
+    for e in getattr(target, 'active_effects', []):
+        resistances += list(getattr(e, 'bonus_resistances', ()))
+        immunities += list(getattr(e, 'bonus_immunities', ()))
+    if damage_type in immunities:
+        print(f'  {target.name} is immune to {damage_type}!')
+        return 0
+    if damage_type in resistances:
+        amount = amount // 2
+    target.current_hp -= amount
+    print(f'  {target.name} takes {amount} {damage_type} ({target.current_hp}/{target.max_hp} HP).')
+    if target.current_hp <= 0 and lethal:
+        target.current_hp = 0
+        Dead().apply(target)
+    return amount
+
+
+def _heal(target, amount):
+    target.current_hp = min(target.max_hp, target.current_hp + amount)
+    print(f'  {target.name} heals {amount} HP ({target.current_hp}/{target.max_hp} HP).')
+
+
+def _temp_hp(target, amount):
+    cur = getattr(target, 'temp_hp', 0)
+    if amount > cur:
+        target.temp_hp = amount
+        print(f'  {target.name} gains {amount} temporary HP.')
+
+
+def _spell_save(caster, target, ability, dc=None):
+    if dc is None:
+        dc = _spell_save_dc(caster)
+    for e in getattr(target, 'active_effects', []):
+        if ability in getattr(e, 'auto_fail_saving_throws', ()):
+            print(f'  {target.name} auto-fails {ability} save.')
+            return False, 0
+    success, total, _, _ = target.roll_check(ability, beat=dc, check_type='Saving Throws')
+    return success, total
+
+
+def _spell_attack_roll(caster, target):
+    bonus = _spell_atk_bonus(caster)
+    adv = sum(getattr(e, 'adv_to_be_attacked', 0) for e in getattr(target, 'active_effects', []))
+    dis = sum(getattr(e, 'disadv_to_be_attacked', 0) for e in getattr(target, 'active_effects', []))
+    success, _, _, crit = caster.roll_check(None, beat=target.ac(), bonus=bonus,
+        check_type='Attack', advantage_counter=adv - dis)
+    return success, crit
+
+
+def _aoe_targets(caster, center, radius_ft, include_caster=False):
+    import math
+    map_ = getattr(caster, '_map', None)
+    if map_ is None:
+        return []
+    if isinstance(center, tuple):
+        cx, cy, cz = center
+    else:
+        pos = getattr(center, 'position', None)
+        if pos is None:
+            return []
+        cx, cy, cz = pos
+    out = []
+    for c, pos in list(map_._creatures.items()):
+        if not include_caster and c is caster:
+            continue
+        px, py, pz = pos
+        dist = math.sqrt((px-cx)**2+(py-cy)**2+(pz-cz)**2) * map_.cell_size
+        if dist <= radius_ft:
+            out.append(c)
+    return out
+
+
+def _place_zone(caster, center, name, radius_ft, duration, on_entry=None, on_exit=None, on_turn=None):
+    from src.map import MapZone
+    map_ = getattr(caster, '_map', None)
+    if map_ is None:
+        return None
+    if isinstance(center, tuple):
+        cx, cy, cz = center
+    else:
+        pos = getattr(center, 'position', None)
+        cx, cy, cz = pos if pos else (0, 0, 0)
+    zone = MapZone(name, cx, cy, cz, radius_ft=radius_ft, duration=duration,
+                   on_entry=on_entry, on_exit=on_exit, on_turn=on_turn, created_by=caster)
+    map_.add_zone(zone)
+    print(f'  {name} zone ({radius_ft}ft radius) placed at ({cx},{cy}).')
+    return zone
+
+
+def _targets_list(targets):
+    return targets if isinstance(targets, list) else [targets]
+
+
+# ── Cast factories ─────────────────────────────────────────────────────────
+
+def _fc_atk(dmg_type, d, scale_n=1, bonus=0):
+    """Cantrip spell attack, damage scales with caster level."""
+    def cast(caster, targets):
+        n = _cantrip_dice(caster) * scale_n
+        for t in _targets_list(targets):
+            hit, crit = _spell_attack_roll(caster, t)
+            if hit:
+                _deal_damage(t, _d(n * (2 if crit else 1), d) + bonus, dmg_type)
+    return cast
+
+
+def _fc_save(dmg_type, d, save_ab, half=False, aoe_from_target=False, radius=5, extra_fn=None):
+    """Cantrip save-based damage."""
+    def cast(caster, targets):
+        n = _cantrip_dice(caster)
+        ts = (_aoe_targets(caster, _targets_list(targets)[0], radius)
+              if aoe_from_target and _targets_list(targets)
+              else _targets_list(targets))
+        if not ts:
+            ts = _targets_list(targets)
+        for t in ts:
+            dmg = _d(n, d)
+            saved, _ = _spell_save(caster, t, save_ab)
+            if not saved:
+                _deal_damage(t, dmg, dmg_type)
+                if extra_fn:
+                    extra_fn(caster, t)
+            elif half:
+                _deal_damage(t, dmg // 2, dmg_type)
+    return cast
+
+
+def _fc_save_aoe_self(dmg_type, d, save_ab, half=False, radius=5, extra_fn=None):
+    """Cantrip AoE from caster."""
+    def cast(caster, targets):
+        n = _cantrip_dice(caster)
+        ts = _aoe_targets(caster, caster, radius)
+        if not ts:
+            ts = _targets_list(targets)
+        for t in ts:
+            dmg = _d(n, d)
+            saved, _ = _spell_save(caster, t, save_ab)
+            if not saved:
+                _deal_damage(t, dmg, dmg_type)
+                if extra_fn:
+                    extra_fn(caster, t)
+            elif half:
+                _deal_damage(t, dmg // 2, dmg_type)
+    return cast
+
+
+def _f_atk(dmg_type, n, d, scale=0, base_lvl=0, bonus=0):
+    """Leveled spell attack, single target."""
+    def cast(caster, targets):
+        slot = getattr(caster, '_cast_level', base_lvl)
+        extra = (slot - base_lvl) * scale if scale and slot > base_lvl else 0
+        for t in _targets_list(targets):
+            hit, crit = _spell_attack_roll(caster, t)
+            if hit:
+                total = (n + extra) * (2 if crit else 1)
+                _deal_damage(t, _d(total, d) + bonus, dmg_type)
+    return cast
+
+
+def _f_save(dmg_type, n, d, save_ab, half=True, scale=0, base_lvl=0, extra_fn=None):
+    """Leveled save damage, single target."""
+    def cast(caster, targets):
+        slot = getattr(caster, '_cast_level', base_lvl)
+        extra = (slot - base_lvl) * scale if scale and slot > base_lvl else 0
+        for t in _targets_list(targets):
+            dmg = _d(n + extra, d)
+            saved, _ = _spell_save(caster, t, save_ab)
+            if not saved:
+                _deal_damage(t, dmg, dmg_type)
+                if extra_fn:
+                    extra_fn(caster, t)
+            elif half:
+                _deal_damage(t, dmg // 2, dmg_type)
+    return cast
+
+
+def _f_cond(cond_cls, save_ab, dur=None):
+    """Apply condition on failed save."""
+    def cast(caster, targets):
+        for t in _targets_list(targets):
+            saved, _ = _spell_save(caster, t, save_ab)
+            if not saved:
+                cond_cls(duration=dur).apply(t)
+                print(f'  {t.name} is {cond_cls.__name__}.')
+    return cast
+
+
+def _f_save_cond(dmg_type, n, d, save_ab, cond_cls, dur=None, half=True, scale=0, base_lvl=0):
+    """Save damage + condition on fail."""
+    def cast(caster, targets):
+        slot = getattr(caster, '_cast_level', base_lvl)
+        extra = (slot - base_lvl) * scale if scale and slot > base_lvl else 0
+        for t in _targets_list(targets):
+            dmg = _d(n + extra, d)
+            saved, _ = _spell_save(caster, t, save_ab)
+            if not saved:
+                _deal_damage(t, dmg, dmg_type)
+                cond_cls(duration=dur).apply(t)
+                print(f'  {t.name} is {cond_cls.__name__}.')
+            elif half:
+                _deal_damage(t, dmg // 2, dmg_type)
+    return cast
+
+
+def _f_aoe_save(dmg_type, n, d, save_ab, half=True, scale=0, base_lvl=0,
+                radius=10, from_caster=False, cond_cls=None, cond_dur=None,
+                zone_dur=0, zone_name=''):
+    """AoE save damage; optionally creates a zone."""
+    def cast(caster, targets):
+        slot = getattr(caster, '_cast_level', base_lvl)
+        extra = (slot - base_lvl) * scale if scale and slot > base_lvl else 0
+        center = caster if from_caster else (_targets_list(targets)[0] if _targets_list(targets) else caster)
+        ts = _aoe_targets(caster, center, radius, include_caster=from_caster)
+        if not ts:
+            ts = _targets_list(targets)
+        for t in ts:
+            dmg = _d(n + extra, d)
+            saved, _ = _spell_save(caster, t, save_ab)
+            if not saved:
+                _deal_damage(t, dmg, dmg_type)
+                if cond_cls:
+                    cond_cls(duration=cond_dur).apply(t)
+                    print(f'  {t.name} is {cond_cls.__name__}.')
+            elif half:
+                _deal_damage(t, dmg // 2, dmg_type)
+        if zone_dur and zone_name:
+            def _on_turn(c, _n=n+extra, _d_=d, _dmg_type=dmg_type, _save_ab=save_ab,
+                         _half=half, _cond_cls=cond_cls, _cond_dur=cond_dur):
+                dmg = _d(_n, _d_)
+                saved, _ = _spell_save(caster, c, _save_ab)
+                if not saved:
+                    _deal_damage(c, dmg, _dmg_type)
+                    if _cond_cls:
+                        _cond_cls(duration=_cond_dur).apply(c)
+                elif _half:
+                    _deal_damage(c, dmg // 2, _dmg_type)
+            def _on_entry(c, _n=n+extra, _d_=d, _dmg_type=dmg_type, _save_ab=save_ab,
+                          _half=half, _cond_cls=cond_cls, _cond_dur=cond_dur):
+                dmg = _d(_n, _d_)
+                saved, _ = _spell_save(caster, c, _save_ab)
+                if not saved:
+                    _deal_damage(c, dmg, _dmg_type)
+                    if _cond_cls:
+                        _cond_cls(duration=_cond_dur).apply(c)
+                elif _half:
+                    _deal_damage(c, dmg // 2, _dmg_type)
+            _place_zone(caster, center, zone_name, radius, zone_dur,
+                        on_entry=_on_entry, on_turn=_on_turn)
+    return cast
+
+
+def _f_heal(n, d, bonus=0, scale=0, base_lvl=1, use_mod=True):
+    """Healing spell."""
+    def cast(caster, targets):
+        slot = getattr(caster, '_cast_level', base_lvl)
+        extra = (slot - base_lvl) * scale if scale and slot > base_lvl else 0
+        mod = caster.get_ability_bonus(getattr(caster, 'spellcasting_ability', 'Intelligence')) if use_mod else 0
+        for t in _targets_list(targets):
+            _heal(t, _d(n + extra, d) + bonus + mod)
+    return cast
+
+
+def _f_utility(label=''):
+    def cast(caster, targets):
+        if label:
+            print(f'  {caster.name}: {label}.')
+    return cast
+
+
 class Spell:
     def __init__(self, name, casting_time, range_, components, duration, description, save=None, level=0, school=None, ability=None, cooldown=None, uses_left=None, level_requirement=1, choices=[], cast=None, materials_required=None, concentration=False):
         self.name = name
@@ -22,7 +329,10 @@ class Spell:
                 self.description += f"- {choice.name}: {choice.description}\n"
             self.cast = lambda caster: self.todo.append("Choose one of the spell's options to cast.")
         else:
-            self.cast = cast
+            if cast is not None:
+                self.cast = cast
+            else:
+                self.cast = _SPELL_CAST_REGISTRY.get(type(self).__name__)
         self.materials_required = materials_required if materials_required is not None else []
         self.concentration = concentration
 
@@ -6586,3 +6896,592 @@ class Wish(Spell):
             description="Wish is the mightiest spell a mortal can cast. By simply speaking aloud, you can alter reality itself. The basic use of this spell is to duplicate any other spell of level 8 or lower. If you use it this way, you don't need to meet any requirements to cast that spell, including costly components. The spell simply takes effect. Alternatively, you can create one of the following effects of your choice: Object Creation. You create one object of up to 25,000 GP in value that isn't a magic item. The object can be no more than 300 feet in any dimension, and it appears in an unoccupied space that you can see on the ground. Instant Health. You allow yourself and up to twenty creatures that you can see to regain all Hit Points, and you end all effects on them listed in the Greater Restoration spell. Resistance. You grant up to ten creatures that you can see Resistance to one damage type that you choose. This Resistance is permanent. Spell Immunity. You grant up to ten creatures you can see immunity to a single spell or other magical effect for 8 hours. Sudden Learning. You replace one of your feats with another feat for which you are eligible. You lose all the benefits of the old feat and gain the benefits of the new one. You can't replace a feat that is a prerequisite for any of your other feats or features. Roll Redo. You undo a single recent event by forcing a reroll of any die roll made within the last round (including your last turn). Reality reshapes itselfto accommodate the new result. For example, a Wish spell could undo an ally's failed saving throw or a foe's Critical Hit. You can force the reroll to be made with Advantage or Disadvantage, and you choose whether to use the reroll or the original roll. Reshape Reality. You may wish for something not included in any of the other effects. To do so, state your wish to the DM as precisely as possible. The DM has great latitude in ruling what occurs in such an instance; the greater the wish, the greater the likelihood that something goes wrong. This spell might simply fail, the effect you desire might be achieved only in part, or you might suffer an unforeseen consequence as a result of how you worded the wish. For example, wishing that a villain were dead might propel you forward in time to a period when that villain is no longer alive, effectively removing you from the game. Similarly, wishing for a Legendary magic item or an Artifact might instantly transport you to the presence of the item's current owner. If your wish is granted and its effects have consequences for a whole community, region, or world, you are likely to attract powerful foes. If your wish would affect a god, the god's divine servants might instantly intervene to prevent it or to encourage you to craft the wish in a particular way. If your wish would undo the multiverse itself, threaten the City of Sigil, or affect the Lady of Pain in any way, you see an image of her in your mind for a moment; she shakes her head, and your wish fails. The stress of casting Wish to produce any effect other than duplicating another spell weakens you. After enduring that stress, each time you cast a spell until you finish a Long Rest, you take 1d10 Necrotic damage per level of that spell. This damage can't be reduced or prevented in any way. In addition, your Strength score becomes 3 for 2d4 days. For each of those days that you spend resting and doing nothing more than light activity, your remaining recovery time decreases by 2 days. Finally, there is a 33 percent chance that you are unable to cast Wish ever again if you suffer this stress.",
             **kwargs
         )
+
+
+# ── Spell cast registry ────────────────────────────────────────────────────
+_SPELL_CAST_REGISTRY.update({
+
+    # === Level 0: Cantrips ===
+    'AcidSplash':    _fc_save('Acid', 6, 'Dexterity', aoe_from_target=True, radius=5),
+    'BladeWard':     _f_utility('Blade Ward — attacker subtracts 1d4 from attack rolls'),
+    'ChillTouch':    _fc_atk('Necrotic', 10),
+    'DancingLights': _f_utility('Dancing Lights — four lights illuminate the area'),
+    'Druidcraft':    _f_utility('Druidcraft — minor nature effect'),
+    'EldritchBlast': _fc_atk('Force', 10),
+    'Elementalism':  _f_utility('Elementalism — minor elemental effect'),
+    'FireBolt':      _fc_atk('Fire', 10),
+    'Friends':       _f_cond(Charmed, 'Wisdom', dur=10),
+    'Guidance':      _f_utility('Guidance — target adds 1d4 to one ability check'),
+    'Light':         _f_utility('Light — object sheds bright light in a 20-foot radius'),
+    'MageHand':      _f_utility('Mage Hand — spectral hand manipulates objects'),
+    'Mending':       _f_utility('Mending — repairs a single break in an object'),
+    'Message':       _f_utility('Message — whispered message to a creature within range'),
+    'MindSliver':    _fc_save('Psychic', 6, 'Intelligence'),
+    'MinorIllusion': _f_utility('Minor Illusion — creates a sound or image'),
+    'PoisonSpray':   _fc_save('Poison', 12, 'Constitution'),
+    'Prestidigitation': _f_utility('Prestidigitation — minor magical trick'),
+    'ProduceFlame':  _fc_atk('Fire', 8),
+    'RayOfFrost':    _fc_atk('Cold', 8),
+    'Resistance':    _f_utility('Resistance — target adds 1d4 to one saving throw'),
+    'SacredFlame':   _fc_save('Radiant', 8, 'Dexterity', half=False),
+    'Shillelagh':    _f_utility('Shillelagh — club or quarterstaff becomes magical'),
+    'ShockingGrasp': _fc_atk('Lightning', 8),
+    'SorcerousBurst': _fc_atk('Force', 8),
+    'SpareTheDying': (lambda caster, targets: [
+        (Dead().remove(t), setattr(t, 'current_hp', 1),
+         print(f'  {t.name} is stabilized (1 HP).'))
+        for t in _targets_list(targets)
+        if any(getattr(e, 'name', '') == 'Dead' for e in getattr(t, 'active_effects', []))
+    ] or print(f'  No dying creatures in range.')),
+    'StarryWisp':    _fc_atk('Radiant', 8),
+    'Thaumaturgy':   _f_utility('Thaumaturgy — minor divine omen'),
+    'ThornWhip':     _fc_atk('Piercing', 6),
+    'Thunderclap':   _fc_save_aoe_self('Thunder', 6, 'Constitution', radius=5),
+    'TollTheDead':   _fc_save('Necrotic', 12, 'Wisdom'),   # simplified (d12 if hurt)
+    'TrueStrike':    _fc_atk('Radiant', 6),
+    'ViciousMockery': _f_save_cond('Psychic', 1, 4, 'Wisdom', Prone, dur=1),
+    'WordOfRadiance': _fc_save_aoe_self('Radiant', 6, 'Constitution', radius=5),
+
+    # === Level 1 ===
+    'Alarm':           _f_utility('Alarm — area warded; intruders trigger alarm'),
+    'AnimalFriendship': _f_cond(Charmed, 'Wisdom', dur=240),
+    'ArmorOfAgathys':  (lambda caster, targets: (
+        _temp_hp(caster, 5),
+        print(f'  {caster.name} gains 5 temp HP and retaliatory Cold aura.')
+    )),
+    'ArmsOfHadar':     _f_aoe_save('Necrotic', 2, 6, 'Strength', scale=1, base_lvl=1, from_caster=True, radius=10),
+    'Bane':            _f_cond(Prone, 'Charisma', dur=10),   # Bane is debuff; Prone approximates -1d4 attacks/saves
+    'Bless':           _f_utility('Bless — targets add 1d4 to attack rolls and saving throws'),
+    'BurningHands':    _f_aoe_save('Fire', 3, 6, 'Dexterity', scale=1, base_lvl=1, from_caster=True, radius=15),
+    'CharmPerson':     _f_cond(Charmed, 'Wisdom', dur=60),
+    'ChromaticOrb':    _f_atk('Fire', 3, 8, scale=1, base_lvl=1),
+    'ColorSpray':      _f_aoe_save('Radiant', 0, 6, 'Constitution', half=False,
+                                    from_caster=True, radius=15, cond_cls=Blinded, cond_dur=1),
+    'Command':         _f_cond(Prone, 'Wisdom', dur=1),
+    'CompelledDuel':   _f_utility('Compelled Duel — target has disadvantage attacking others'),
+    'ComprehendLanguages': _f_utility('Comprehend Languages — understand any spoken/written language'),
+    'CreateOrDestroyWater': _f_utility('Create or Destroy Water — create or destroy 10 gallons'),
+    'CureWounds':      _f_heal(2, 8, scale=2, base_lvl=1),
+    'DetectEvilAndGood': _f_utility('Detect Evil and Good — sense alignment type within 30 ft'),
+    'DetectMagic':     _f_utility('Detect Magic — sense magic within 30 ft'),
+    'DetectPoisonAndDisease': _f_utility('Detect Poison and Disease — sense poison within 30 ft'),
+    'DisguiseSelf':    _f_utility('Disguise Self — appear as different creature'),
+    'DissonantWhispers': _f_save('Psychic', 3, 6, 'Wisdom', scale=1, base_lvl=1),
+    'DivineFavor':     _f_utility('Divine Favor — weapon attacks deal extra 1d4 Radiant'),
+    'DivineSmite':     _f_save('Radiant', 2, 8, 'Constitution', half=False, scale=1, base_lvl=1),
+    'EnsnaringStrike': _f_save_cond('Piercing', 0, 6, 'Strength', Restrained, dur=10),
+    'Entangle':        _f_aoe_save('Bludgeoning', 0, 6, 'Strength', half=False,
+                                    radius=20, cond_cls=Restrained, cond_dur=10, zone_dur=10, zone_name='Entangle'),
+    'ExpeditiousRetreat': _f_utility('Expeditious Retreat — take Dash as bonus action'),
+    'FaerieFire':      _f_aoe_save('Radiant', 0, 6, 'Dexterity', half=False,
+                                    radius=20, cond_cls=Prone, cond_dur=1),
+    'FalseLife':       (lambda caster, targets: _temp_hp(caster, _d(2, 4) + 4)),
+    'FeatherFall':     _f_utility('Feather Fall — targets fall 60 ft/round and take no fall damage'),
+    'FindFamiliar':    _f_utility('Find Familiar — summon a familiar spirit'),
+    'FogCloud':        _f_utility('Fog Cloud — creates a 20-ft-radius sphere of fog'),
+    'Goodberry':       _f_utility('Goodberry — 10 berries appear, each heals 1 HP'),
+    'Grease':          _f_aoe_save('Bludgeoning', 0, 6, 'Dexterity', half=False,
+                                    radius=10, cond_cls=Prone, cond_dur=1, zone_dur=10, zone_name='Grease'),
+    'GuidingBolt':     _f_atk('Radiant', 4, 6, scale=1, base_lvl=1),
+    'HailOfThorns':    _f_aoe_save('Piercing', 1, 10, 'Dexterity', scale=1, base_lvl=1, from_caster=False, radius=5),
+    'HealingWord':     _f_heal(2, 4, scale=2, base_lvl=1),
+    'HellishRebuke':   _f_save('Fire', 2, 10, 'Dexterity', scale=1, base_lvl=1),
+    'Heroism':         _f_utility('Heroism — target immune to Frightened, gains temp HP each turn'),
+    'Hex':             _f_utility('Hex — target takes extra 1d6 Necrotic on hits'),
+    'HuntersMark':     _f_utility("Hunter's Mark — target takes extra 1d6 Force on hits"),
+    'IceKnife':        _f_save('Cold', 2, 6, 'Dexterity', scale=1, base_lvl=1),
+    'Identify':        _f_utility('Identify — learn properties of magic item'),
+    'IllusoryScript':  _f_utility('Illusory Script — write message only designated readers see'),
+    'InflictWounds':   _f_save('Necrotic', 2, 10, 'Constitution', scale=1, base_lvl=1),
+    'Jump':            _f_utility('Jump — target can jump 30 ft per turn'),
+    'Longstrider':     _f_utility('Longstrider — target Speed +10 ft'),
+    'MageArmor':       _f_utility('Mage Armor — target base AC becomes 13 + Dex'),
+    'MagicMissile':    (lambda caster, targets: [
+        _deal_damage(t, _d(1, 4) + 1, 'Force')
+        for _ in range(3) for t in [(_targets_list(targets) or [caster])[0]]
+    ]),
+    'ProtectionFromEvilAndGood': _f_utility('Protection from Evil and Good — creature protected from aligned foes'),
+    'PurifyFoodAndDrink': _f_utility('Purify Food and Drink — neutralize poison/disease in food'),
+    'RayOfSickness':   _f_save_cond('Poison', 2, 8, 'Constitution', Poisoned, dur=1, scale=1, base_lvl=1),
+    'Sanctuary':       _f_utility('Sanctuary — creature must save or choose new target'),
+    'SearingSmite':    _f_atk('Fire', 1, 6, scale=1, base_lvl=1),
+    'Shield':          _f_utility('Shield — +5 to AC until next turn (reaction)'),
+    'ShieldOfFaith':   _f_utility('Shield of Faith — target gains +2 AC'),
+    'SilentImage':     _f_utility('Silent Image — create visual illusion up to 15 ft cube'),
+    'Sleep':           (lambda caster, targets: [
+        (Unconscious(duration=10).apply(t), print(f'  {t.name} falls asleep.'))
+        for t in _targets_list(targets)
+        if t.current_hp <= 5 * _d(5, 8)
+    ]),
+    'SpeakWithAnimals': _f_utility('Speak with Animals — comprehend and speak with beasts'),
+    'SpellfireFlare':  _f_atk('Fire', 2, 6, scale=1, base_lvl=1),
+    'TashasHideousLaughter': _f_save_cond('Psychic', 0, 6, 'Wisdom', Prone, dur=10),
+    'TensersFloatingDisk': _f_utility("Tenser's Floating Disk — floating disk follows you"),
+    'ThunderousSmite': _f_save_cond('Thunder', 2, 6, 'Strength', Prone, dur=1, scale=1, base_lvl=1),
+    'Thunderwave':     _f_aoe_save('Thunder', 2, 8, 'Constitution', scale=1, base_lvl=1, from_caster=True, radius=15),
+    'UnseenServant':   _f_utility('Unseen Servant — invisible creature obeys commands'),
+    'Wardaway':        _f_save('Radiant', 2, 6, 'Wisdom', scale=1, base_lvl=1),
+    'WitchBolt':       _f_atk('Lightning', 1, 12, scale=1, base_lvl=1),
+    'WrathfulSmite':   _f_save_cond('Necrotic', 1, 6, 'Wisdom', Frightened, dur=10, scale=1, base_lvl=1),
+
+    # === Level 2 ===
+    'Aid':             (lambda caster, targets: [
+        (setattr(t, 'max_hp', t.max_hp + 5),
+         setattr(t, 'current_hp', t.current_hp + 5),
+         print(f'  {t.name} max/current HP +5.'))
+        for t in _targets_list(targets)
+    ]),
+    'AlterSelf':       _f_utility('Alter Self — change physical form'),
+    'AnimalMessenger': _f_utility('Animal Messenger — beast delivers a message'),
+    'ArcaneLock':      _f_utility('Arcane Lock — magically lock a door or container'),
+    'ArcaneVigor':     (lambda caster, targets: _heal(caster, _d(2, 8) + caster.get_ability_bonus(getattr(caster, 'spellcasting_ability', 'Intelligence')))),
+    'Augury':          _f_utility('Augury — divine weal/woe of an action'),
+    'Barkskin':        _f_utility('Barkskin — target natural AC becomes 17'),
+    'BeastSense':      _f_utility('Beast Sense — perceive through a beast\'s senses'),
+    'Blindnessdeafness': _f_cond(Blinded, 'Constitution', dur=10),
+    'Blur':            _f_utility('Blur — attackers have disadvantage against you'),
+    'CalmEmotions':    _f_utility('Calm Emotions — suppress strong emotion'),
+    'CloudOfDaggers':  _f_aoe_save('Slashing', 4, 4, 'Dexterity',
+                                    radius=5, zone_dur=10, zone_name='Cloud of Daggers'),
+    'ContinualFlame':  _f_utility('Continual Flame — magical flame burns without fuel'),
+    'CordonOfArrows':  _f_utility('Cordon of Arrows — arrows guard an area'),
+    'CrownOfMadness':  _f_cond(Charmed, 'Wisdom', dur=10),
+    'Darkness':        _f_utility('Darkness — 15-ft radius sphere of magical darkness'),
+    'Darkvision':      _f_utility('Darkvision — target gains 60 ft darkvision'),
+    'DeathArmor':      _f_utility('Death Armor — retaliation necrotic damage on hit'),
+    'DeryansHelpfulHomunculi': _f_utility('Deryan\'s Helpful Homunculi — tiny construct assists'),
+    'DetectThoughts':  _f_utility('Detect Thoughts — read surface thoughts of creatures'),
+    'DragonsBreath':   _f_aoe_save('Fire', 3, 6, 'Dexterity', from_caster=True, radius=15),
+    'ElminstersElusion': _f_utility('Elminster\'s Elusion — teleport short distance'),
+    'EnhanceAbility':  _f_utility('Enhance Ability — grant advantage on one ability checks'),
+    'Enlargereduce':   _f_utility('Enlarge/Reduce — target grows or shrinks'),
+    'Enthrall':        _f_cond(Charmed, 'Wisdom', dur=10),
+    'FindSteed':       _f_utility('Find Steed — summon a loyal steed'),
+    'FindTraps':       _f_utility('Find Traps — sense nearby traps'),
+    'FlameBlade':      _f_atk('Fire', 3, 6, scale=1, base_lvl=2),
+    'FlamingSphere':   _f_aoe_save('Fire', 2, 6, 'Dexterity', scale=1, base_lvl=2,
+                                    radius=5, zone_dur=10, zone_name='Flaming Sphere'),
+    'GentleRepose':    _f_utility('Gentle Repose — preserve a corpse'),
+    'GustOfWind':      _f_aoe_save('Bludgeoning', 0, 6, 'Strength', half=False,
+                                    from_caster=True, radius=60, cond_cls=Prone, cond_dur=1),
+    'HeatMetal':       _f_save('Fire', 2, 8, 'Constitution', scale=1, base_lvl=2),
+    'HoldPerson':      _f_cond(Paralyzed, 'Wisdom', dur=10),
+    'HomunculusServant': _f_utility('Homunculus Servant — tiny magical construct obeys'),
+    'Invisibility':    (lambda caster, targets: [
+        (Invisible(duration=60).apply(t), print(f'  {t.name} becomes invisible.'))
+        for t in _targets_list(targets)
+    ]),
+    'Knock':           _f_utility('Knock — open a lock, door, or container'),
+    'LesserRestoration': (lambda caster, targets: [
+        (t.active_effects.__class__ and  # always True, just for side effect
+         [e.remove(t) for e in list(t.active_effects)
+          if getattr(e, 'name', '') in ('Blinded', 'Deafened', 'Paralyzed', 'Poisoned')],
+         print(f'  {t.name}: conditions removed.'))
+        for t in _targets_list(targets)
+    ]),
+    'Levitate':        _f_utility('Levitate — target floats 20 ft up'),
+    'LocateAnimalsOrPlants': _f_utility('Locate Animals or Plants — sense nearest beast/plant'),
+    'LocateObject':    _f_utility('Locate Object — sense direction to familiar object'),
+    'MagicMouth':      _f_utility('Magic Mouth — object speaks when triggered'),
+    'MagicWeapon':     _f_utility('Magic Weapon — weapon becomes +1 magical weapon'),
+    'MelfsAcidArrow':  _f_atk('Acid', 4, 4, scale=1, base_lvl=2),
+    'MindSpike':       _f_atk('Psychic', 3, 8, scale=1, base_lvl=2),
+    'MirrorImage':     _f_utility('Mirror Image — three illusory duplicates'),
+    'MistyStep':       _f_utility('Misty Step — teleport 30 ft'),
+    'Moonbeam':        _f_aoe_save('Radiant', 2, 10, 'Constitution', scale=1, base_lvl=2,
+                                    radius=5, zone_dur=10, zone_name='Moonbeam'),
+    'NystulsMagicAura': _f_utility('Nystul\'s Magic Aura — change creature\'s magic aura'),
+    'PassWithoutTrace': _f_utility('Pass Without Trace — +10 to Stealth, leave no tracks'),
+    'PhantasmalForce': _f_save_cond('Psychic', 1, 6, 'Intelligence', Incapacitated, dur=10),
+    'PrayerOfHealing': _f_heal(2, 8, scale=1, base_lvl=2),
+    'ProtectionFromPoison': _f_utility('Protection from Poison — neutralize/resist poison'),
+    'RayOfEnfeeblement': _f_cond(Restrained, 'Constitution', dur=10),
+    'RopeTrick':       _f_utility('Rope Trick — rope leads to extradimensional space'),
+    'ScorchingRay':    (lambda caster, targets: [
+        _deal_damage(t, _d(2, 6), 'Fire')
+        for _ in range(3) for t in [(_targets_list(targets) or [caster])[0]]
+        if _spell_attack_roll(caster, (_targets_list(targets) or [caster])[0])[0]
+    ]),
+    'SeeInvisibility': _f_utility('See Invisibility — see invisible and ethereal creatures'),
+    'Shatter':         _f_aoe_save('Thunder', 3, 8, 'Constitution', scale=1, base_lvl=2, radius=10),
+    'ShiningSmite':    _f_atk('Radiant', 2, 6, scale=1, base_lvl=2),
+    'Silence':         _f_aoe_save('Thunder', 0, 6, 'Constitution', half=False,
+                                    radius=20, cond_cls=Deafened, cond_dur=100,
+                                    zone_dur=100, zone_name='Silence'),
+    'SpiderClimb':     _f_utility('Spider Climb — target can walk on walls and ceilings'),
+    'SpikeGrowth':     _f_aoe_save('Piercing', 2, 4, 'Dexterity',
+                                    radius=20, zone_dur=100, zone_name='Spike Growth'),
+    'SpiritualWeapon': _f_atk('Force', 1, 8, scale=1, base_lvl=2,
+                               bonus=0),   # note: proper impl adds spell mod
+    'Suggestion':      _f_cond(Charmed, 'Wisdom', dur=480),
+    'SummonBeast':     _f_utility('Summon Beast — summon a bestial spirit'),
+    'WardingBond':     _f_utility('Warding Bond — share damage with bonded ally'),
+    'Web':             _f_aoe_save('Bludgeoning', 0, 6, 'Dexterity', half=False,
+                                    radius=20, cond_cls=Restrained, cond_dur=10,
+                                    zone_dur=60, zone_name='Web'),
+    'ZoneOfTruth':     _f_utility('Zone of Truth — creatures in area cannot lie'),
+
+    # === Level 3 ===
+    'AnimateDead':     _f_utility('Animate Dead — raise undead servant'),
+    'AuraOfVitality':  _f_heal(2, 6, scale=1, base_lvl=3),
+    'BeaconOfHope':    _f_utility('Beacon of Hope — targets have advantage on death saves'),
+    'BestowCurse':     _f_save_cond('Necrotic', 1, 8, 'Wisdom', Frightened, dur=10),
+    'BlindingSmite':   _f_save_cond('Radiant', 3, 8, 'Constitution', Blinded, dur=10),
+    'Blink':           _f_utility('Blink — 50% chance to shift to Ethereal Plane each turn'),
+    'CacophonicShield': _f_save('Thunder', 2, 8, 'Constitution'),
+    'CallLightning':   _f_aoe_save('Lightning', 3, 10, 'Dexterity', scale=1, base_lvl=3,
+                                    radius=10, zone_dur=100, zone_name='Call Lightning'),
+    'Clairvoyance':    _f_utility('Clairvoyance — create a remote sensor'),
+    'ConjureAnimals':  _f_utility('Conjure Animals — summon fey beasts'),
+    'ConjureBarrage':  _f_aoe_save('Piercing', 3, 8, 'Dexterity', from_caster=True, radius=60),
+    'ConjureConstructs': _f_utility('Conjure Constructs — summon a construct spirit'),
+    'Counterspell':    _f_utility('Counterspell — interrupt another spell (reaction)'),
+    'CreateFoodAndWater': _f_utility('Create Food and Water — 45 lbs food, 30 gal water'),
+    'CrusadersMantle': _f_utility("Crusader's Mantle — allies' weapon attacks deal +1d4 Radiant"),
+    'Daylight':        _f_utility('Daylight — 60-ft sphere of bright light'),
+    'DispelMagic':     _f_utility('Dispel Magic — end magical effects'),
+    'ElementalWeapon': _f_utility('Elemental Weapon — imbue weapon with elemental damage'),
+    'Fear':            _f_aoe_save('Psychic', 0, 6, 'Wisdom', half=False,
+                                    from_caster=True, radius=30, cond_cls=Frightened, cond_dur=10),
+    'FeignDeath':      _f_utility('Feign Death — target appears dead for 1 hour'),
+    'Fireball':        _f_aoe_save('Fire', 8, 6, 'Dexterity', scale=1, base_lvl=3,
+                                    radius=20),
+    'Fly':             _f_utility('Fly — target gains 60-ft fly speed'),
+    'GaseousForm':     _f_utility('Gaseous Form — transform into a cloud'),
+    'GlyphOfWarding':  _f_utility('Glyph of Warding — inscribe a magical trap'),
+    'Haste':           _f_utility('Haste — target gains double speed, extra action'),
+    'HungerOfHadar':   _f_aoe_save('Cold', 2, 6, 'Dexterity', half=False,
+                                    radius=20, cond_cls=Blinded, cond_dur=1,
+                                    zone_dur=100, zone_name='Hunger of Hadar'),
+    'HypnoticPattern': _f_aoe_save('Psychic', 0, 6, 'Wisdom', half=False,
+                                    radius=30, cond_cls=Incapacitated, cond_dur=10),
+    'LaeralsSilverLance': _f_atk('Radiant', 4, 8, scale=1, base_lvl=3),
+    'LeomundsTinyHut': _f_utility("Leomund's Tiny Hut — protective dome for 9 creatures"),
+    'LightningArrow':  _f_atk('Lightning', 4, 8, scale=1, base_lvl=3),
+    'LightningBolt':   _f_aoe_save('Lightning', 8, 6, 'Dexterity', scale=1, base_lvl=3,
+                                    from_caster=True, radius=60),
+    'MagicCircle':     _f_utility('Magic Circle — protect against one creature type'),
+    'MajorImage':      _f_utility('Major Image — create a 20-ft cube sensory illusion'),
+    'MassHealingWord': _f_heal(2, 4, scale=1, base_lvl=3),
+    'MeldIntoStone':   _f_utility('Meld into Stone — merge into stone surface'),
+    'Nondetection':    _f_utility('Nondetection — shield target from divination'),
+    'PhantomSteed':    _f_utility('Phantom Steed — summon a riding horse'),
+    'PlantGrowth':     _f_utility('Plant Growth — overgrow plants in 100-ft radius'),
+    'ProtectionFromEnergy': _f_utility('Protection from Energy — resistance to chosen energy'),
+    'RemoveCurse':     _f_utility('Remove Curse — end all curses on target'),
+    'Revivify':        (lambda caster, targets: [
+        (Dead().remove(t), print(f'  {t.name} revives with 1 HP.'))
+        for t in _targets_list(targets)
+        if any(getattr(e, 'name', '') == 'Dead' for e in getattr(t, 'active_effects', []))
+    ]),
+    'Sending':         _f_utility('Sending — telepathic message to any creature'),
+    'SleetStorm':      _f_aoe_save('Cold', 0, 6, 'Dexterity', half=False,
+                                    radius=20, cond_cls=Prone, cond_dur=1,
+                                    zone_dur=100, zone_name='Sleet Storm'),
+    'Slow':            _f_aoe_save('Psychic', 0, 6, 'Wisdom', half=False,
+                                    radius=40, cond_cls=Restrained, cond_dur=1),
+    'SpeakWithDead':   _f_utility('Speak with Dead — ask corpse five questions'),
+    'SpeakWithPlants': _f_utility('Speak with Plants — communicate with plants'),
+    'SpiritGuardians': _f_aoe_save('Radiant', 3, 8, 'Wisdom', scale=1, base_lvl=3,
+                                    from_caster=True, radius=15,
+                                    zone_dur=100, zone_name='Spirit Guardians'),
+    'StinkingCloud':   _f_aoe_save('Poison', 0, 6, 'Constitution', half=False,
+                                    radius=20, cond_cls=Incapacitated, cond_dur=1,
+                                    zone_dur=100, zone_name='Stinking Cloud'),
+    'SummonFey':       _f_utility('Summon Fey — summon a fey spirit'),
+    'SummonUndead':    _f_utility('Summon Undead — summon an undead spirit'),
+    'SylunesViper':    _f_utility("Sylune's Viper — conjure a magical viper"),
+    'Tongues':         _f_utility('Tongues — understand and speak any language'),
+    'VampiricTouch':   _f_atk('Necrotic', 3, 6, scale=1, base_lvl=3),
+    'WaterBreathing':  _f_utility('Water Breathing — breathe underwater for 24 hours'),
+    'WaterWalk':       _f_utility('Water Walk — walk on liquid surfaces'),
+    'WindWall':        _f_aoe_save('Bludgeoning', 3, 8, 'Strength',
+                                    radius=20, zone_dur=10, zone_name='Wind Wall'),
+
+    # === Level 4 ===
+    'ArcaneEye':       _f_utility('Arcane Eye — invisible magical sensor'),
+    'AuraOfLife':      _f_utility('Aura of Life — allies in 30-ft can\'t be reduced below 1 HP'),
+    'AuraOfPurity':    _f_utility('Aura of Purity — allies in 30-ft resist conditions'),
+    'Backlash':        _f_save('Force', 4, 8, 'Constitution', scale=1, base_lvl=4),
+    'Banishment':      _f_cond(Incapacitated, 'Charisma', dur=10),
+    'Blight':          _f_save('Necrotic', 8, 8, 'Constitution', scale=1, base_lvl=4),
+    'CharmMonster':    _f_cond(Charmed, 'Wisdom', dur=240),
+    'Compulsion':      _f_cond(Prone, 'Wisdom', dur=10),
+    'Confusion':       _f_aoe_save('Psychic', 0, 6, 'Wisdom', half=False,
+                                    radius=10, cond_cls=Incapacitated, cond_dur=10),
+    'ConjureMinorElementals': _f_utility('Conjure Minor Elementals — summon elementals'),
+    'ConjureWoodlandBeings': _f_utility('Conjure Woodland Beings — summon fey creatures'),
+    'ControlWater':    _f_utility('Control Water — control bodies of water'),
+    'DeathWard':       _f_utility('Death Ward — target drops to 1 HP instead of dying once'),
+    'DimensionDoor':   _f_utility('Dimension Door — teleport up to 500 ft'),
+    'Divination':      _f_utility('Divination — divine answer to a question'),
+    'DominateBeast':   _f_cond(Charmed, 'Wisdom', dur=10),
+    'Doomtide':        _f_aoe_save('Necrotic', 4, 8, 'Constitution', scale=1, base_lvl=4,
+                                    radius=20, zone_dur=10, zone_name='Doomtide'),
+    'EvardsBlackTentacles': _f_aoe_save('Bludgeoning', 3, 6, 'Dexterity',
+                                    radius=20, cond_cls=Restrained, cond_dur=10,
+                                    zone_dur=10, zone_name="Evard's Black Tentacles"),
+    'Fabricate':       _f_utility('Fabricate — craft object from raw materials'),
+    'FireShield':      _f_utility('Fire Shield — warm/cold shield; retaliate 2d8 damage on hit'),
+    'FountOfMoonlight': _f_utility('Fount of Moonlight — radiant aura'),
+    'FreedomOfMovement': _f_utility('Freedom of Movement — immune to difficult terrain/grapple'),
+    'GiantInsect':     _f_utility('Giant Insect — summon giant insect'),
+    'GraspingVine':    _f_save_cond('Bludgeoning', 0, 6, 'Dexterity', Restrained, dur=10),
+    'GreaterInvisibility': (lambda caster, targets: [
+        (Invisible(duration=10).apply(t), print(f'  {t.name} becomes invisible (Greater Invisibility).'))
+        for t in _targets_list(targets)
+    ]),
+    'GuardianOfFaith': _f_utility('Guardian of Faith — Large spectral guardian deals 20 Radiant'),
+    'HallucinatoryTerrain': _f_utility('Hallucinatory Terrain — disguise terrain visually'),
+    'IceStorm':        _f_aoe_save('Cold', 2, 8, 'Dexterity', scale=1, base_lvl=4, radius=20),
+    'LeomundsSecretChest': _f_utility("Leomund's Secret Chest — hide chest on Ethereal Plane"),
+    'LocateCreature':  _f_utility('Locate Creature — sense direction to creature within 1000 ft'),
+    'MordenkainensFaithfulHound': _f_utility("Mordenkainen's Faithful Hound — watchdog attacks intruders"),
+    'MordenkainensPrivateSanctum': _f_utility("Mordenkainen's Private Sanctum — secure area"),
+    'OtilukesResilientSphere': _f_cond(Restrained, 'Dexterity', dur=10),
+    'PhantasmalKiller': _f_save_cond('Psychic', 4, 10, 'Wisdom', Frightened, dur=10),
+    'Polymorph':       _f_cond(Incapacitated, 'Wisdom', dur=60),
+    'SpellfireStorm':  _f_aoe_save('Fire', 5, 6, 'Dexterity', scale=1, base_lvl=4, radius=20),
+    'StaggeringSmite': _f_save_cond('Psychic', 4, 6, 'Constitution', Stunned, dur=1),
+    'StoneShape':      _f_utility('Stone Shape — reshape a stone object'),
+    'Stoneskin':       _f_utility('Stoneskin — resistance to Bludgeoning, Piercing, Slashing'),
+    'SummonAberration': _f_utility('Summon Aberration — summon aberration spirit'),
+    'SummonConstruct': _f_utility('Summon Construct — summon construct spirit'),
+    'SummonElemental': _f_utility('Summon Elemental — summon elemental spirit'),
+    'VitriolicSphere': _f_save('Acid', 10, 4, 'Dexterity', scale=2, base_lvl=4),
+    'WallOfFire':      _f_aoe_save('Fire', 5, 8, 'Dexterity', scale=1, base_lvl=4,
+                                    radius=20, zone_dur=10, zone_name='Wall of Fire'),
+
+    # === Level 5 ===
+    'AlustrielsMooncloak': _f_utility("Alustriel's Mooncloak — cloak grants flight and Radiant shield"),
+    'AnimateObjects':  _f_utility('Animate Objects — animate up to 10 objects'),
+    'AntilifeShell':   _f_utility('Antilife Shell — barrier blocks living creatures'),
+    'Awaken':          _f_utility('Awaken — grant Intelligence and speech to beast or plant'),
+    'BanishingSmite':  _f_save_cond('Force', 5, 10, 'Charisma', Incapacitated, dur=1),
+    'BigbysHand':      _f_atk('Force', 4, 8, scale=2, base_lvl=5),
+    'CircleOfPower':   _f_utility('Circle of Power — allies advantage on saves, half on success'),
+    'Cloudkill':       _f_aoe_save('Poison', 5, 8, 'Constitution', scale=1, base_lvl=5,
+                                    radius=20, zone_dur=100, zone_name='Cloudkill'),
+    'Commune':         _f_utility('Commune — ask deity three yes/no questions'),
+    'CommuneWithNature': _f_utility('Commune with Nature — learn facts about surroundings'),
+    'ConeOfCold':      _f_aoe_save('Cold', 8, 8, 'Constitution', scale=1, base_lvl=5,
+                                    from_caster=True, radius=60),
+    'ConjureElemental': _f_utility('Conjure Elemental — summon large elemental'),
+    'ConjureVolley':   _f_aoe_save('Piercing', 8, 8, 'Dexterity', radius=40),
+    'ContactOtherPlane': _f_utility('Contact Other Plane — ask 5 questions of a planar being'),
+    'Contagion':       _f_save_cond('Necrotic', 0, 6, 'Constitution', Poisoned, dur=60),
+    'Creation':        _f_utility('Creation — create object from shadow material'),
+    'DestructiveWave': _f_aoe_save('Thunder', 5, 6, 'Constitution', from_caster=True, radius=30),
+    'DispelEvilAndGood': _f_utility('Dispel Evil and Good — ward against outsiders'),
+    'DominatePerson':  _f_cond(Charmed, 'Wisdom', dur=10),
+    'Dream':           _f_utility('Dream — shape target\'s dreams; deal 3d6 Psychic'),
+    'FlameStrike':     _f_aoe_save('Fire', 4, 6, 'Dexterity', scale=1, base_lvl=5, radius=10),
+    'Geas':            _f_cond(Charmed, 'Wisdom', dur=14400),
+    'GreaterRestoration': (lambda caster, targets: [
+        (t.active_effects.__class__ and  # always True
+         [e.remove(t) for e in list(t.active_effects)
+          if getattr(e, 'name', '') in ('Charmed', 'Frightened', 'Paralyzed', 'Petrified',
+                                        'Exhaustion', 'Blinded', 'Deafened', 'Poisoned')],
+         print(f'  {t.name}: greater restoration applied.'))
+        for t in _targets_list(targets)
+    ]),
+    'Hallow':          _f_utility('Hallow — sanctify an area, ward against undead'),
+    'HoldMonster':     _f_cond(Paralyzed, 'Wisdom', dur=10),
+    'InsectPlague':    _f_aoe_save('Piercing', 4, 10, 'Constitution', scale=1, base_lvl=5,
+                                    radius=20, zone_dur=100, zone_name='Insect Plague'),
+    'JallarzisStormOfRadiance': _f_aoe_save('Radiant', 4, 10, 'Constitution', scale=1, base_lvl=5,
+                                    radius=20, zone_dur=10, zone_name="Jallarzi's Storm"),
+    'LegendLore':      _f_utility('Legend Lore — learn lore about a legendary subject'),
+    'MassCureWounds':  _f_heal(5, 8, scale=1, base_lvl=5),
+    'Mislead':         _f_utility('Mislead — create duplicate while you turn invisible'),
+    'ModifyMemory':    _f_cond(Charmed, 'Wisdom', dur=10),
+    'Passwall':        _f_utility('Passwall — create a passage through a wall'),
+    'PlanarBinding':   _f_cond(Charmed, 'Charisma', dur=86400),
+    'RaiseDead':       (lambda caster, targets: [
+        (Dead().remove(t), _heal(t, 1), print(f'  {t.name} raised from the dead.'))
+        for t in _targets_list(targets)
+        if any(getattr(e, 'name', '') == 'Dead' for e in getattr(t, 'active_effects', []))
+    ]),
+    'RarysTelepathicBond': _f_utility("Rary's Telepathic Bond — link minds of up to 8 creatures"),
+    'Reincarnate':     _f_utility('Reincarnate — restore dead soul in a new body'),
+    'Scrying':         _f_utility('Scrying — observe creature on same plane'),
+    'Seeming':         _f_utility('Seeming — disguise multiple creatures'),
+    'SongalsElementalSuffusion': _f_aoe_save('Fire', 5, 6, 'Dexterity', scale=1, base_lvl=5,
+                                    radius=20, zone_dur=10, zone_name="Songal's Suffusion"),
+    'SteelWindStrike': (lambda caster, targets: [
+        (_spell_attack_roll(caster, t)[0] and _deal_damage(t, _d(6, 10), 'Force'))
+        for t in _targets_list(targets)[:5]
+    ]),
+    'SummonCelestial': _f_utility('Summon Celestial — summon celestial spirit'),
+    'SummonDragon':    _f_utility('Summon Dragon — summon draconic spirit'),
+    'SwiftQuiver':     _f_utility('Swift Quiver — quiver produces arrows; bonus action attacks'),
+    'SynapticStatic':  _f_aoe_save('Psychic', 8, 6, 'Intelligence', radius=20),
+    'Telekinesis':     _f_cond(Restrained, 'Strength', dur=10),
+    'TeleportationCircle': _f_utility('Teleportation Circle — create portal to known circle'),
+    'TreeStride':      _f_utility('Tree Stride — teleport between trees'),
+    'WallOfForce':     _f_utility('Wall of Force — invisible impassable wall'),
+    'WallOfStone':     _f_utility('Wall of Stone — create stone wall panels'),
+    'YolandesRegalPresence': _f_aoe_save('Psychic', 0, 6, 'Wisdom', half=False,
+                                    radius=30, cond_cls=Frightened, cond_dur=10),
+
+    # === Level 6 ===
+    'ArcaneGate':      _f_utility('Arcane Gate — linked teleportation portals'),
+    'BladeBarrier':    _f_aoe_save('Slashing', 6, 10, 'Dexterity', radius=30,
+                                    zone_dur=10, zone_name='Blade Barrier'),
+    'ChainLightning':  _f_save('Lightning', 10, 8, 'Dexterity', scale=1, base_lvl=6),
+    'CircleOfDeath':   _f_aoe_save('Necrotic', 8, 8, 'Constitution', scale=2, base_lvl=6, radius=60),
+    'ConjureFey':      _f_utility('Conjure Fey — summon powerful fey creature'),
+    'Contingency':     _f_utility('Contingency — trigger a spell when a condition is met'),
+    'CreateUndead':    _f_utility('Create Undead — create powerful undead servants'),
+    'Dirge':           _f_aoe_save('Necrotic', 6, 6, 'Wisdom', radius=30,
+                                    zone_dur=10, zone_name='Dirge'),
+    'Disintegrate':    _f_save('Force', 10, 6, 'Dexterity', half=False, scale=3, base_lvl=6),
+    'DrawmijsInstantSummons': _f_utility("Drawmij's Instant Summons — teleport prepared object"),
+    'ElminstersEffulgentSpheres': _f_aoe_save('Radiant', 6, 8, 'Dexterity', scale=1, base_lvl=6, radius=20),
+    'Eyebite':         _f_cond(Unconscious, 'Wisdom', dur=10),
+    'FindThePath':     _f_utility('Find the Path — know shortest path to location'),
+    'FleshToStone':    _f_cond(Petrified, 'Constitution', dur=60),
+    'Forbiddance':     _f_utility('Forbiddance — ward area against teleportation'),
+    'GlobeOfInvulnerability': _f_utility('Globe of Invulnerability — block spells level 5 and lower'),
+    'GuardsAndWards':  _f_utility('Guards and Wards — multiple magical protections'),
+    'Harm':            _f_save('Necrotic', 14, 6, 'Constitution', half=False),
+    'Heal':            (lambda caster, targets: [
+        (_heal(t, 70),
+         [e.remove(t) for e in list(t.active_effects)
+          if getattr(e, 'name', '') in ('Blinded', 'Deafened', 'Paralyzed', 'Poisoned')])
+        for t in _targets_list(targets)
+    ]),
+    'HeroesFeast':     _f_utility("Heroes' Feast — banquet grants immunity, HP boost, saves"),
+    'MagicJar':        _f_cond(Incapacitated, 'Charisma', dur=None),
+    'MassSuggestion':  _f_cond(Charmed, 'Wisdom', dur=2880),
+    'MoveEarth':       _f_utility('Move Earth — reshape terrain up to 40-ft cube'),
+    'OtilukesFreezingSphere': _f_aoe_save('Cold', 10, 6, 'Constitution', radius=60),
+    'OttosIrresistibleDance': _f_cond(Incapacitated, 'Wisdom', dur=10),
+    'PlanarAlly':      _f_utility('Planar Ally — beseech an extraplanar being for aid'),
+    'ProgrammedIllusion': _f_utility('Programmed Illusion — illusory scene triggered by condition'),
+    'SummonFiend':     _f_utility('Summon Fiend — summon fiendish spirit'),
+    'Sunbeam':         _f_aoe_save('Radiant', 6, 8, 'Constitution', half=False,
+                                    from_caster=True, radius=60, cond_cls=Blinded, cond_dur=1),
+    'TashasBubblingCauldron': _f_utility("Tasha's Bubbling Cauldron — brew potions"),
+    'TransportViaPlants': _f_utility('Transport via Plants — teleport between plants'),
+    'TrueSeeing':      _f_utility('True Seeing — see through illusions, darkness, invisible'),
+    'WallOfIce':       _f_aoe_save('Cold', 10, 6, 'Dexterity', radius=30,
+                                    cond_cls=Restrained, cond_dur=1,
+                                    zone_dur=10, zone_name='Wall of Ice'),
+    'WallOfThorns':    _f_aoe_save('Piercing', 7, 8, 'Dexterity', scale=1, base_lvl=6,
+                                    radius=20, zone_dur=10, zone_name='Wall of Thorns'),
+    'WindWalk':        _f_utility('Wind Walk — transform into mist and fly'),
+    'WordOfRecall':    _f_utility('Word of Recall — teleport up to 5 creatures to sanctuary'),
+
+    # === Level 7 ===
+    'ConjureCelestial': _f_utility('Conjure Celestial — summon powerful celestial'),
+    'DelayedBlastFireball': _f_aoe_save('Fire', 12, 6, 'Dexterity', scale=1, base_lvl=7, radius=20),
+    'DivineWord':      (lambda caster, targets: [
+        (Stunned(duration=1).apply(t) if t.current_hp <= 30 else
+         Blinded(duration=1).apply(t) if t.current_hp <= 40 else
+         Deafened(duration=1).apply(t) if t.current_hp <= 50 else
+         print(f'  {t.name} is unaffected.'))
+        for t in _targets_list(targets)
+        if not _spell_save(caster, t, 'Charisma')[0]
+    ]),
+    'Etherealness':    _f_utility('Etherealness — enter Ethereal Plane'),
+    'FingerOfDeath':   _f_save('Necrotic', 7, 8, 'Constitution', half=False,
+                                scale=1, base_lvl=7),
+    'FireStorm':       _f_aoe_save('Fire', 7, 10, 'Dexterity', radius=30),
+    'Forcecage':       _f_cond(Restrained, 'Charisma', dur=60),
+    'MirageArcane':    _f_utility('Mirage Arcane — transform terrain for 10 days'),
+    'MordenkainensMagnificentMansion': _f_utility("Mordenkainen's Magnificent Mansion — extradimensional dwelling"),
+    'MordenkainensSword': _f_atk('Force', 3, 10, scale=1, base_lvl=7),
+    'PlaneShift':      _f_cond(Incapacitated, 'Charisma', dur=None),
+    'PowerWordFortify': (lambda caster, targets: [
+        _temp_hp(t, 120) for t in _targets_list(targets)
+    ]),
+    'PrismaticSpray':  (lambda caster, targets: [
+        _deal_damage(t, _d(10, 6) if _roll_dice(1, 8) <= 4 else _d(10, 8), 'Radiant')
+        for t in _targets_list(targets)
+        if not _spell_save(caster, t, 'Dexterity')[0]
+    ]),
+    'ProjectImage':    _f_utility('Project Image — illusory duplicate at any distance'),
+    'Regenerate':      _f_heal(4, 8, bonus=15, base_lvl=7),
+    'Resurrection':    (lambda caster, targets: [
+        (Dead().remove(t), _heal(t, 1), print(f'  {t.name} resurrected.'))
+        for t in _targets_list(targets)
+        if any(getattr(e, 'name', '') == 'Dead' for e in getattr(t, 'active_effects', []))
+    ]),
+    'ReverseGravity':  _f_save_cond('Bludgeoning', 6, 6, 'Dexterity', Restrained, dur=10),
+    'Sequester':       _f_utility('Sequester — hide creature in stasis'),
+    'SimbulsSynostodweomer': _f_utility("Simbul's Synostodweomer — convert spell slots to healing"),
+    'Simulacrum':      _f_utility('Simulacrum — create illusory duplicate of a creature'),
+    'Symbol':          _f_utility('Symbol — inscribe a magical ward'),
+    'Teleport':        _f_utility('Teleport — teleport to known location'),
+
+    # === Level 8 ===
+    'AnimalShapes':    _f_utility('Animal Shapes — transform up to 8 allies into beasts'),
+    'AntimagicField':  _f_utility('Antimagic Field — 10-ft sphere suppresses magic'),
+    'Antipathysympathy': _f_utility('Antipathy/Sympathy — attract or repel certain creatures'),
+    'Befuddlement':    _f_save_cond('Psychic', 10, 6, 'Intelligence', Stunned, dur=10),
+    'Clone':           _f_utility('Clone — create a backup body'),
+    'ControlWeather':  _f_utility('Control Weather — change weather in 5-mile radius'),
+    'Demiplane':       _f_utility('Demiplane — create door to a pocket dimension'),
+    'DominateMonster': _f_cond(Charmed, 'Wisdom', dur=60),
+    'Earthquake':      _f_aoe_save('Bludgeoning', 0, 6, 'Dexterity', half=False,
+                                    radius=100, cond_cls=Prone, cond_dur=1,
+                                    zone_dur=10, zone_name='Earthquake'),
+    'Glibness':        _f_utility('Glibness — +10 to Persuasion, lies undetectable'),
+    'HolyAura':        _f_utility('Holy Aura — allies advantage on saves, blind attackers'),
+    'HolyStarOfMystra': _f_aoe_save('Radiant', 8, 8, 'Constitution', radius=20),
+    'IncendiaryCloud': _f_aoe_save('Fire', 10, 8, 'Dexterity', radius=20,
+                                    zone_dur=10, zone_name='Incendiary Cloud'),
+    'Maze':            _f_cond(Incapacitated, 'Intelligence', dur=100),
+    'MindBlank':       _f_utility('Mind Blank — immune to Psychic, charm, divination'),
+    'PowerWordStun':   (lambda caster, targets: [
+        (Stunned(duration=10).apply(t), print(f'  {t.name} is stunned (Power Word).'))
+        if t.current_hp <= 150 else print(f'  {t.name} has too many HP.')
+        for t in _targets_list(targets)
+    ]),
+    'Sunburst':        _f_aoe_save('Radiant', 12, 6, 'Constitution', half=False,
+                                    radius=60, cond_cls=Blinded, cond_dur=1),
+    'Telepathy':       _f_utility('Telepathy — communicate mentally at any distance'),
+    'Tsunami':         _f_aoe_save('Bludgeoning', 6, 10, 'Strength', radius=100),
+
+    # === Level 9 ===
+    'AstralProjection': _f_utility('Astral Projection — project astral form'),
+    'BladeOfDisaster': (lambda caster, targets: [
+        (_spell_attack_roll(caster, t)[0] and _deal_damage(t, _d(2, 12) + _d(2, 12) + _d(2, 12), 'Force'))
+        for t in _targets_list(targets)
+    ]),
+    'Foresight':       _f_utility('Foresight — advantage on everything, enemies disadvantage against you'),
+    'Gate':            _f_utility('Gate — summon a deity or open a portal'),
+    'Imprisonment':    _f_cond(Incapacitated, 'Wisdom', dur=None),
+    'MassHeal':        (lambda caster, targets: [
+        _heal(t, max(0, t.max_hp - t.current_hp)) for t in _targets_list(targets)
+    ]),
+    'MeteorSwarm':     _f_aoe_save('Fire', 20, 6, 'Dexterity', radius=40),
+    'PowerWordHeal':   (lambda caster, targets: [
+        (_heal(t, t.max_hp - t.current_hp),
+         [e.remove(t) for e in list(t.active_effects)
+          if getattr(e, 'name', '') in ('Charmed', 'Frightened', 'Paralyzed', 'Stunned')])
+        for t in _targets_list(targets)
+    ]),
+    'PowerWordKill':   (lambda caster, targets: [
+        (Dead().apply(t), print(f'  {t.name} is slain (Power Word Kill).'))
+        if t.current_hp <= 100 else print(f'  {t.name} has too many HP.')
+        for t in _targets_list(targets)
+    ]),
+    'PrismaticWall':   _f_utility('Prismatic Wall — 7-color barrier with escalating effects'),
+    'Shapechange':     _f_utility('Shapechange — assume form of any creature'),
+    'StormOfVengeance': _f_aoe_save('Thunder', 10, 8, 'Constitution', from_caster=True, radius=360,
+                                     zone_dur=10, zone_name='Storm of Vengeance'),
+    'TimeStop':        _f_utility('Time Stop — take 1d4+1 turns while others are frozen'),
+    'TruePolymorph':   _f_cond(Incapacitated, 'Wisdom', dur=100),
+    'TrueResurrection': (lambda caster, targets: [
+        (Dead().remove(t), setattr(t, 'current_hp', t.max_hp),
+         print(f'  {t.name} is fully resurrected.'))
+        for t in _targets_list(targets)
+        if any(getattr(e, 'name', '') == 'Dead' for e in getattr(t, 'active_effects', []))
+    ]),
+    'Weird':           _f_aoe_save('Psychic', 4, 10, 'Wisdom', half=False,
+                                    radius=30, cond_cls=Frightened, cond_dur=10),
+    'Wish':            _f_utility('Wish — anything is possible'),
+})
+
