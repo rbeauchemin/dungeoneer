@@ -308,7 +308,7 @@ def _f_utility(label=''):
 
 
 class Spell:
-    def __init__(self, name, casting_time, range_, components, duration, description, save=None, level=0, school=None, ability=None, cooldown=None, uses_left=None, level_requirement=1, choices=[], cast=None, materials_required=None, concentration=False):
+    def __init__(self, name, casting_time, range_, components, duration, description, save=None, level=0, school=None, ability=None, cooldown=None, uses_left=None, level_requirement=1, choices=[], cast=None, materials_required=None, concentration=False, ritual=False, **kwargs):
         self.name = name
         self.todo = []
         self.level = level
@@ -322,6 +322,7 @@ class Spell:
         self.cooldown = cooldown
         self.uses_left = uses_left
         self.choices = choices
+        self.ritual = ritual
         # TODO: Implement choices functionality
         if len(choices) > 0:
             self.description += " You can choose one of the following options:\n"
@@ -863,7 +864,7 @@ class WordOfRadiance(Spell):
 
 
 class Alarm(Spell):
-    def __init__(self, level=1, casting_time='1 minute (Ritual)', duration='8 hours', **kwargs):
+    def __init__(self, level=1, casting_time='1 minute', duration='8 hours', **kwargs):
         super().__init__(
             name='Alarm',
             level=level,
@@ -873,6 +874,7 @@ class Alarm(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a bell and silver wire')],
             duration=duration,
+            ritual=True,
             description="You set an alarm against intrusion. Choose a door, a window, or an area within range that is no larger than a 20-foot Cube. Until the spell ends, an alarm alerts you whenever a creature touches or enters the warded area. When you cast the spell, you can designate creatures that won't set off the alarm. You also choose whether the alarm is audible or mental: Audible Alarm. The alarm produces the sound of a handbell for 10 seconds within 60 feet of the warded area. Mental Alarm. You are alerted by a mental ping if you are within 1 mile of the warded area. This ping awakens you if you're asleep.",
             **kwargs
         )
@@ -1053,7 +1055,7 @@ class CompelledDuel(Spell):
 
 
 class ComprehendLanguages(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='1 hour', **kwargs):
         super().__init__(
             name='Comprehend Languages',
             level=level,
@@ -1063,6 +1065,7 @@ class ComprehendLanguages(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a pinch of soot and salt')],
             duration=duration,
+            ritual=True,
             description="For the duration, you understand the literal meaning of any language that you hear or see signed. You also understand any written language that you see, but you must be touching the surface on which the words are written. It takes about 1 minute to read one page of text. This spell doesn't decode symbols or secret messages.",
             **kwargs
         )
@@ -1116,7 +1119,7 @@ class DetectEvilAndGood(Spell):
 
 
 class DetectMagic(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='10 minutes', concentration=True, **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='10 minutes', concentration=True, **kwargs):
         super().__init__(
             name='Detect Magic',
             level=level,
@@ -1125,6 +1128,7 @@ class DetectMagic(Spell):
             range_='Self',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description="For the duration, you sense the presence of magical effects within 30 feet of yourself. If you sense such effects, you can take the Magic action to see a faint aura around any visible creature or object in the area that bears the magic, and if an effect was created by a spell, you learn the spell's school of magic. The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.",
             concentration=concentration,
             **kwargs
@@ -1132,7 +1136,7 @@ class DetectMagic(Spell):
 
 
 class DetectPoisonAndDisease(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='10 minutes', concentration=True, **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='10 minutes', concentration=True, **kwargs):
         super().__init__(
             name='Detect Poison and Disease',
             level=level,
@@ -1142,6 +1146,7 @@ class DetectPoisonAndDisease(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a yew leaf')],
             duration=duration,
+            ritual=True,
             description='For the duration, you sense the location of poisons, poisonous or venomous creatures, and magical contagions within 30 feet of yourself. You sense the kind of poison, creature, or contagion in each case. The spell is blocked by 1 foot of stone, dirt, or wood; 1 inch of metal; or a thin sheet of lead.',
             concentration=concentration,
             **kwargs
@@ -1305,7 +1310,7 @@ class FeatherFall(Spell):
 
 
 class FindFamiliar(Spell):
-    def __init__(self, level=1, casting_time='1 hour (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=1, casting_time='1 hour', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Find Familiar',
             level=level,
@@ -1315,6 +1320,7 @@ class FindFamiliar(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='burning incense worth 10+ GP, which the spell consumes', value=10)],
             duration=duration,
+            ritual=True,
             description="You gain the service of a familiar, a spirit that takes an animal form you choose: Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0. Appearing in an unoccupied space within range, the familiar has the statistics of the chosen form (see appendix B), though it is a Celestial, Fey, or Fiend (your choice) instead of a Beast. Your familiar acts independently of you, but it obeys your commands. Telepathic Connection. While your familiar is within 100 feet of you, you can communicate with it telepathically. Additionally, as a Bonus Action, you can see through the familiar's eyes and hear what it hears until the start of your next turn, gaining the benefits of any special senses it has. Finally, when you cast a spell with a range of touch, your familiar can deliver the touch. Your familiar must be within 100 feet of you, and it must take a Reaction to deliver the touch when you cast the spell. Combat. The familiar is an ally to you and your allies. It rolls its own Initiative and acts on its own turn. A familiar can't attack, but it can take other actions as normal. Disappearance of the Familiar. When the familiar drops to 0 Hit Points, it disappears. It reappears after you cast this spell again. As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you. Whenever the familiar drops to 0 Hit Points or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying. One Familiar Only. You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.",
             **kwargs
         )
@@ -1494,7 +1500,7 @@ class IceKnife(Spell):
 
 
 class Identify(Spell):
-    def __init__(self, level=1, casting_time='1 minute (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=1, casting_time='1 minute', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Identify',
             level=level,
@@ -1504,13 +1510,14 @@ class Identify(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a pearl worth 100+ GP', value=100)],
             duration=duration,
+            ritual=True,
             description="You touch an object throughout the spell's casting. If the object is a magic item or some other magical object, you learn its properties and how to use them, whether it requires Attunement, and how many charges it has, if any. You learn whether any ongoing spells are affecting the item and what they are. If the item was created by a spell, you learn that spell's name. If you instead touch a creature throughout the casting, you learn which ongoing spells, if any, are currently affecting it.",
             **kwargs
         )
 
 
 class IllusoryScript(Spell):
-    def __init__(self, level=1, casting_time='1 minute (Ritual)', duration='10 days', **kwargs):
+    def __init__(self, level=1, casting_time='1 minute', duration='10 days', **kwargs):
         super().__init__(
             name='Illusory Script',
             level=level,
@@ -1520,6 +1527,7 @@ class IllusoryScript(Spell):
             components=['S', 'M'],
             materials_required=[Item(name='ink worth 10+ GP, which the spell consumes', value=10)],
             duration=duration,
+            ritual=True,
             description='You write on parchment, paper, or another suitable material and imbue it with an illusion that lasts for the duration. To you and any creatures you designate when you cast the spell, the writing appears normal, seems to be written in your hand, and conveys whatever meaning you intended when you wrote the text. To all others, the writing appears as if it were written in an unknown or magical script that is unintelligible. Alternatively, the illusion can alter the meaning, handwriting, and language of the text, though the language must be one you know. If the spell is dispelled, the original script and the illusion both disappear. A creature that has Truesight can read the hidden message.',
             **kwargs
         )
@@ -1621,7 +1629,7 @@ class ProtectionFromEvilAndGood(Spell):
 
 
 class PurifyFoodAndDrink(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Purify Food and Drink',
             level=level,
@@ -1630,6 +1638,7 @@ class PurifyFoodAndDrink(Spell):
             range_='10 feet',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description='You remove poison and rot from nonmagical food and drink in a 5-foot-radius Sphere centered on a point within range.',
             **kwargs
         )
@@ -1748,7 +1757,7 @@ class Sleep(Spell):
 
 
 class SpeakWithAnimals(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='10 minutes', **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='10 minutes', **kwargs):
         super().__init__(
             name='Speak with Animals',
             level=level,
@@ -1757,6 +1766,7 @@ class SpeakWithAnimals(Spell):
             range_='Self',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description="For the duration, you can comprehend and verbally communicate with Beasts, and you can use any of the Influence action's skill options with them. Most Beasts have little to say about topics that don't pertain to survival or companionship, but at minimum, a Beast can give you information about nearby locations and monsters, including whatever it has perceived within the past day.",
             **kwargs
         )
@@ -1795,7 +1805,7 @@ class TashasHideousLaughter(Spell):
 
 
 class TensersFloatingDisk(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='1 hour', **kwargs):
         super().__init__(
             name="Tenser's Floating Disk",
             level=level,
@@ -1805,6 +1815,7 @@ class TensersFloatingDisk(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a drop of mercury')],
             duration=duration,
+            ritual=True,
             description="This spell creates a circular, horizontal plane of force, 3 feet in diameter and 1 inch thick, that floats 3 feet above the ground in an unoccupied space of your choice that you can see within range. The disk remains for the duration and can hold up to 500 pounds. If more weight is placed on it, the spell ends, and everything on the disk falls to the ground. The disk is immobile while you are within 20 feet of it. If you move more than 20 feet away from it, the disk follows you so that it remains within 20 feet of you. It can move across uneven terrain, up or down stairs, slopes and the like, but it can't cross an elevation change of 10 feet or more. For example, the disk can't move across a 10-foot-deep pit, nor could it leave such a pit if it was created at the bottom. If you move more than 100 feet from the disk (typically because it can't move around an obstacle to follow you), the spell ends.",
             **kwargs
         )
@@ -1841,7 +1852,7 @@ class Thunderwave(Spell):
 
 
 class UnseenServant(Spell):
-    def __init__(self, level=1, casting_time='Action (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=1, casting_time='Action', duration='1 hour', **kwargs):
         super().__init__(
             name='Unseen Servant',
             level=level,
@@ -1851,6 +1862,7 @@ class UnseenServant(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a bit of string and of wood')],
             duration=duration,
+            ritual=True,
             description="This spell creates an Invisible, mindless, shapeless, Medium force that performs simple tasks at your command until the spell ends. The servant springs into existence in an unoccupied space on the ground within range. It has AC 10, 1 Hit Point, and a Strength of 2, and it can't attack. If it drops to 0 Hit Points, the spell ends. Once on each of your turns as a Bonus Action, you can mentally command the servant to move up to 15 feet and interact with an object. The servant can perform simple tasks that a human could do, such as fetching things, cleaning, mending, folding clothes, lighting fires, serving food, and pouring drinks. Once you give the command, the servant performs the task to the best of its ability until it completes the task, then waits for your next command. If you command the servant to perform a task that would move it more than 60 feet away from you, the spell ends.",
             **kwargs
         )
@@ -1937,7 +1949,7 @@ class AlterSelf(Spell):
 
 
 class AnimalMessenger(Spell):
-    def __init__(self, level=2, casting_time='Action (Ritual)', duration='24 Hours', **kwargs):
+    def __init__(self, level=2, casting_time='Action', duration='24 Hours', **kwargs):
         super().__init__(
             name='Animal Messenger',
             level=level,
@@ -1947,6 +1959,7 @@ class AnimalMessenger(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a morsel of food')],
             duration=duration,
+            ritual=True,
             description='A Tiny Beast of your choice that you can see within range must succeed on a Charisma saving throw, or it attempts to deliver a message for you (if the target\'s Challenge Rating isn\'t 0, it automatically succeeds). You specify a location you have visited and a recipient who matches a general description, such as "a person dressed in the uniform of the town guard" or "a red-haired dwarf wearing a pointed hat." You also communicate a message of up to twenty-five words. The Beast travels for the duration toward the specified location, covering about 25 miles per 24 hours or 50 miles if the Beast can fly. When the Beast arrives, it delivers your message to the creature that you described, mimicking your communication. If the Beast doesn\'t reach its destination before the spell ends, the message is lost, and the Beast returns to where you cast the spell. Using a Higher-Level Spell Slot. The spell\'s duration increases by 48 hours for each spell slot level above 2.',
             **kwargs
         )
@@ -1984,7 +1997,7 @@ class ArcaneVigor(Spell):
 
 
 class Augury(Spell):
-    def __init__(self, level=2, casting_time='1 minute (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=2, casting_time='1 minute', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Augury',
             level=level,
@@ -1994,6 +2007,7 @@ class Augury(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='specially marked sticks, bones, cards, or other divinatory tokens worth 25+ GP', value=25)],
             duration=duration,
+            ritual=True,
             description="You receive an omen from an otherworldly entity about the results of a course of action that you plan to take within the next 30 minutes. The DM chooses the omen from the Omens table. Omens Omen For Results That Will Be… Weal Good Woe Bad Weal and woe Good and bad Indifference Neither good nor bad The spell doesn't account for circumstances, such as other spells, that might change the results. If you cast the spell more than once before finishing a Long Rest, there is a cumulative 25 percent chance for each casting after the first that you get no answer.",
             **kwargs
         )
@@ -2016,7 +2030,7 @@ class Barkskin(Spell):
 
 
 class BeastSense(Spell):
-    def __init__(self, level=2, casting_time='Action (Ritual)', duration='1 hour', concentration=True, **kwargs):
+    def __init__(self, level=2, casting_time='Action', duration='1 hour', concentration=True, **kwargs):
         super().__init__(
             name='Beast Sense',
             level=level,
@@ -2025,6 +2039,7 @@ class BeastSense(Spell):
             range_='Touch',
             components=['S'],
             duration=duration,
+            ritual=True,
             description="You touch a willing Beast. For the duration, you can perceive through the Beast's senses as well as your own. When perceiving through the Beast's senses, you benefit from any special senses it has.",
             concentration=concentration,
             **kwargs
@@ -2193,7 +2208,7 @@ class DeathArmor(Spell):
 
 
 class DeryansHelpfulHomunculi(Spell):
-    def __init__(self, level=2, casting_time='Action (Ritual)', duration='8 hours', **kwargs):
+    def __init__(self, level=2, casting_time='Action', duration='8 hours', **kwargs):
         super().__init__(
             name="Deryan's Helpful Homunculi",
             level=level,
@@ -2203,6 +2218,7 @@ class DeryansHelpfulHomunculi(Spell):
             components=['V', 'S', "M"],
             materials_required=[Item(name="powdered gemstones worth 100+ GP, which the spell consumes, and one set of Artisan's Tools with which you have proficiency", value=100)],
             duration=duration,
+            ritual=True,
             description="You summon a group of helpful spirits, which lasts for the duration. The spirits appear as homunculi or as another Construct of your choice but are intangible and invulnerable, and they are considered to have proficiency in the Arcana skill and with the set of Artisan's Tools used in the spell's casting. If you are crafting an item, the spirits function as a single assistant for your crafting, halving the crafting time.",
             **kwargs
         )
@@ -2373,7 +2389,7 @@ class FlamingSphere(Spell):
 
 
 class GentleRepose(Spell):
-    def __init__(self, level=2, casting_time='Action (Ritual)', duration='10 days', **kwargs):
+    def __init__(self, level=2, casting_time='Action', duration='10 days', **kwargs):
         super().__init__(
             name='Gentle Repose',
             level=level,
@@ -2383,6 +2399,7 @@ class GentleRepose(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='2 Copper Pieces, which the spell consumes', value=0.02)],
             duration=duration,
+            ritual=True,
             description="You touch a corpse or other remains. For the duration, the target is protected from decay and can't become Undead. The spell also effectively extends the time limit on raising the target from the dead, since days spent under the influence of this spell don't count against the time limit of spells such as Raise Dead.",
             **kwargs
         )
@@ -2440,7 +2457,7 @@ class HoldPerson(Spell):
 
 
 class HomunculusServant(Spell):
-    def __init__(self, level=2, casting_time='1 hour or Ritual', duration='Instantaneous', **kwargs):
+    def __init__(self, level=2, casting_time='1 hour', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Homunculus Servant',
             level=level,
@@ -2450,6 +2467,7 @@ class HomunculusServant(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a gem worth 100+ GP', value=100)],
             duration=duration,
+            ritual=True,
             description="You summon a special homunculus in an unoccupied space within range. This creature uses the Homunculus Servant stat block. If you already have a homunculus from this spell, the homunculus is replaced by the new one. You determine the homunculus's appearance, such as a mechanical-looking bird, winged vials, or miniature animate cauldrons. Combat The homunculus is an ally to you and your allies. In combat, it shares your Initiative count, but it takes its turn immediately after yours. It obeys your commands (no action required by you). If you don't issue any, it takes the Dodge action and uses its movement to avoid danger. Using a Higher-Level Spell Slot Use the spell slot's level for the spell's level in the stat block. Homunculus Servant Homunculus Servant Tiny Construct, Neutral Armor Class: 13 Hit Points: 5 + 5 per spell level (the homunculus has a number of Hit Dice [d4s] equal to the spell's level) Speed: 20 ft., Fly 30 ft. STR (Mod/Save) DEX (Mod/Save) CON (Mod/Save) INT (Mod/Save) WIS (Mod/Save) CHA (Mod/Save) 4 (-3/-3) 15 (+2/+2) 12 (+1/+1) 10 (−0/-0) 10 (+0/+0) 7 (-2/-2) Immunities: Poison; Exhaustion, Poisoned Senses: Darkvision 60 ft.; Passive Perception 10 Languages: Telepathy 1 mile (works only with you) Challenge Rating: None (XP 0; PB equals your Proficiency Bonus) Traits Evasion. If the homunculus is subjected to an effect that allows it to make a Dexterity saving throw to take only half damage, the homunculus instead takes no damage if it succeeds on the save and only half damage if it fails. It can't use this trait if it has the Incapacitated condition. Magic Bond. Add the spell level to any ability check or saving throw the homunculus makes. Actions Force Strike. Melee or Ranged Attack Roll: Bonus equals your spell attack modifier, reach 5 ft. or range 30 ft. Hit: 1d6 plus the spell's level of Force damage. Reactions Channel Magic. Trigger: You cast a spell that has a range of touch while the homunculus is within 120 feet of you. Response: The homunculus delivers the spell through its touch.",
             **kwargs
         )
@@ -2520,7 +2538,7 @@ class Levitate(Spell):
 
 
 class LocateAnimalsOrPlants(Spell):
-    def __init__(self, level=2, casting_time='Action (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=2, casting_time='Action', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Locate Animals or Plants',
             level=level,
@@ -2530,6 +2548,7 @@ class LocateAnimalsOrPlants(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='fur from a bloodhound')],
             duration=duration,
+            ritual=True,
             description='Describe or name a specific kind of Beast, Plant creature, or nonmagical plant. You learn the direction and distance to the closest creature or plant of that kind within 5 miles, if any are present.',
             **kwargs
         )
@@ -2553,7 +2572,7 @@ class LocateObject(Spell):
 
 
 class MagicMouth(Spell):
-    def __init__(self, level=2, casting_time='1 minute (Ritual)', duration='Until dispelled', **kwargs):
+    def __init__(self, level=2, casting_time='1 minute', duration='Until dispelled', **kwargs):
         super().__init__(
             name='Magic Mouth',
             level=level,
@@ -2563,6 +2582,7 @@ class MagicMouth(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='jade dust worth 10+ GP, which the spell consumes', value=10)],
             duration=duration,
+            ritual=True,
             description="You implant a message within an object in range - a message that is uttered when a trigger condition is met. Choose an object that you can see and that isn't being worn or carried by another creature. Then speak the message, which must be 25 words or fewer, though it can be delivered over as long as 10 minutes. Finally, determine the circumstance that will trigger the spell to deliver your message. When that trigger occurs, a magical mouth appears on the object and recites the message in your voice and at the same volume you spoke. If the object you chose has a mouth or something that looks like a mouth (for example, the mouth of a statue), the magical mouth appears there, so the words appear to come from the object's mouth. When you cast this spell, you can have the spell end after it delivers its message, or it can remain and repeat its message whenever the trigger occurs. The trigger can be as general or as detailed as you like, though it must be based on visual or audible conditions that occur within 30 feet of the object. For example, you could instruct the mouth to speak when any creature moves within 30 feet of the object or when a silver bell rings within 30 feet of it.",
             **kwargs
         )
@@ -2838,7 +2858,7 @@ class ShiningSmite(Spell):
 
 
 class Silence(Spell):
-    def __init__(self, level=2, casting_time='Action (Ritual)', duration='10 minutes', concentration=True, **kwargs):
+    def __init__(self, level=2, casting_time='Action', duration='10 minutes', concentration=True, **kwargs):
         super().__init__(
             name='Silence',
             level=level,
@@ -2847,6 +2867,7 @@ class Silence(Spell):
             range_='120 feet',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description='For the duration, no sound can be created within or pass through a 20-foot-radius Sphere centered on a point you choose within range. Any creature or object entirely inside the Sphere has Immunity to Thunder damage, and creatures have the Deafened condition while entirely inside it. Casting a spell that includes a Verbal component is impossible there.',
             concentration=concentration,
             **kwargs
@@ -3287,7 +3308,7 @@ class Fear(Spell):
 
 
 class FeignDeath(Spell):
-    def __init__(self, level=3, casting_time='Action (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=3, casting_time='Action', duration='1 hour', **kwargs):
         super().__init__(
             name='Feign Death',
             level=level,
@@ -3297,6 +3318,7 @@ class FeignDeath(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a pinch of graveyard dirt')],
             duration=duration,
+            ritual=True,
             description="You touch a willing creature and put it into a cataleptic state that is indistinguishable from death. For the duration, the target appears dead to outward inspection and to spells used to determine the target's status. The target has the Blinded and Incapacitated conditions, and its Speed is 0. The target also has Resistance to all damage except Psychic damage, and it has Immunity to the Poisoned condition.",
             **kwargs
         )
@@ -3436,7 +3458,7 @@ class LaeralsSilverLance(Spell):
 
 
 class LeomundsTinyHut(Spell):
-    def __init__(self, level=3, casting_time='1 minute (Ritual)', duration='8 hours', **kwargs):
+    def __init__(self, level=3, casting_time='1 minute', duration='8 hours', **kwargs):
         super().__init__(
             name="Leomund's Tiny Hut",
             level=level,
@@ -3446,6 +3468,7 @@ class LeomundsTinyHut(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a crystal bead')],
             duration=duration,
+            ritual=True,
             description="A 10-foot Emanation springs into existence around you and remains stationary for the duration. The spell fails when you cast it if the Emanation isn't big enough to fully encapsulate all creatures in its area. Creatures and objects within the Emanation when you cast the spell can move through it freely. All other creatures and objects are barred from passing through it. Spells of level 3 or lower can't be cast through it, and the effects of such spells can't extend into it. The atmosphere inside the Emanation is comfortable and dry, regardless of the weather outside. Until the spell ends, you can command the interior to have Dim Light or Darkness (no action required). The Emanation is opaque from the outside and of any color you choose, but it's transparent from the inside. The spell ends early if you leave the Emanation or if you cast it again.",
             **kwargs
         )
@@ -3531,7 +3554,7 @@ class MassHealingWord(Spell):
 
 
 class MeldIntoStone(Spell):
-    def __init__(self, level=3, casting_time='Action (Ritual)', duration='8 hours', **kwargs):
+    def __init__(self, level=3, casting_time='Action', duration='8 hours', **kwargs):
         super().__init__(
             name='Meld into Stone',
             level=level,
@@ -3540,6 +3563,7 @@ class MeldIntoStone(Spell):
             range_='Touch',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description="You step into a stone object or surface large enough to fully contain your body, merging yourself and your equipment with the stone for the duration. You must touch the stone to do so. Nothing of your presence remains visible or otherwise detectable by nonmagical senses. While merged with the stone, you can't see what occurs outside it, and any Wisdom (Perception) checks you make to hear sounds outside it are made with Disadvantage. You remain aware of the passage of time and can cast spells on yourself while merged in the stone. You can use 5 feet of movement to leave the stone where you entered it, which ends the spell. You otherwise can't move. Minor physical damage to the stone doesn't harm you, but its partial destruction or a change in its shape (to the extent that you no longer fit within it) expels you and deals 6d6 Force damage to you. The stone's complete destruction (or transmutation into a different substance) expels you and deals 50 Force damage to you. If expelled, you move into an unoccupied space closest to where you first entered and have the Prone condition.",
             **kwargs
         )
@@ -3562,7 +3586,7 @@ class Nondetection(Spell):
 
 
 class PhantomSteed(Spell):
-    def __init__(self, level=3, casting_time='1 minute (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=3, casting_time='1 minute', duration='1 hour', **kwargs):
         super().__init__(
             name='Phantom Steed',
             level=level,
@@ -3571,6 +3595,7 @@ class PhantomSteed(Spell):
             range_='30 feet',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description="A Large, quasi-real, horselike creature appears on the ground in an unoccupied space of your choice within range. You decide the creature's appearance, and it is equipped with a saddle, bit, and bridle. Any of the equipment created by the spell vanishes in a puff of smoke if it is carried more than 10 feet away from the steed. For the duration, you or a creature you choose can ride the steed. The steed uses the Riding Horse stat block (see appendix B), except it has a Speed of 100 feet and can travel 13 miles in an hour. When the spell ends, the steed gradually fades, giving the rider 1 minute to dismount. The spell ends early if the steed takes any damage.",
             **kwargs
         )
@@ -3836,7 +3861,7 @@ class VampiricTouch(Spell):
 
 
 class WaterBreathing(Spell):
-    def __init__(self, level=3, casting_time='Action (Ritual)', duration='24 hours', **kwargs):
+    def __init__(self, level=3, casting_time='Action', duration='24 hours', **kwargs):
         super().__init__(
             name='Water Breathing',
             level=level,
@@ -3846,13 +3871,14 @@ class WaterBreathing(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a short reed')],
             duration=duration,
+            ritual=True,
             description='This spell grants up to ten willing creatures of your choice within range the ability to breathe underwater until the spell ends. Affected creatures also retain their normal mode of respiration.',
             **kwargs
         )
 
 
 class WaterWalk(Spell):
-    def __init__(self, level=3, casting_time='Action (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=3, casting_time='Action', duration='1 hour', **kwargs):
         super().__init__(
             name='Water Walk',
             level=level,
@@ -3862,6 +3888,7 @@ class WaterWalk(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a piece of cork')],
             duration=duration,
+            ritual=True,
             description="This spell grants the ability to move across any liquid surface - such as water, acid, mud, snow, quicksand, or lava - as if it were harmless solid ground (creatures crossing molten lava can still take damage from the heat). Up to ten willing creatures of your choice within range gain this ability for the duration. An affected target must take a Bonus Action to pass from the liquid's surface into the liquid itself and vice versa, but if the target falls into the liquid, the target passes through the surface into the liquid below.",
             **kwargs
         )
@@ -4108,7 +4135,7 @@ class DimensionDoor(Spell):
 
 
 class Divination(Spell):
-    def __init__(self, level=4, casting_time='Action (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=4, casting_time='Action', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Divination',
             level=level,
@@ -4118,6 +4145,7 @@ class Divination(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='incense worth 25+ GP, which the spell consumes', value=25)],
             duration=duration,
+            ritual=True,
             description="This spell puts you in contact with a god or a god's servants. You ask one question about a specific goal, event, or activity to occur within 7 days. The DM offers a truthful reply, which might be a short phrase or cryptic rhyme. The spell doesn't account for circumstances that might change the answer, such as the casting of other spells. If you cast the spell more than once before finishing a Long Rest, there is a cumulative 25 percent chance for each casting after the first that you get no answer.",
             **kwargs
         )
@@ -4725,7 +4753,7 @@ class Cloudkill(Spell):
 
 
 class Commune(Spell):
-    def __init__(self, level=5, casting_time='1 minute (Ritual)', duration='1 minute', **kwargs):
+    def __init__(self, level=5, casting_time='1 minute', duration='1 minute', **kwargs):
         super().__init__(
             name='Commune',
             level=level,
@@ -4735,13 +4763,14 @@ class Commune(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='incense')],
             duration=duration,
+            ritual=True,
             description='You contact a deity or a divine proxy and ask up to three questions that can be answered with yes or no. You must ask your questions before the spell ends. You receive a correct answer for each question. Divine beings aren\'t necessarily omniscient, so you might receive "unclear" as an answer if a question pertains to information that lies beyond the deity\'s knowledge. In a case where a one-word answer could be misleading or contrary to the deity\'s interests, the DM might offer a short phrase as an answer instead. If you cast the spell more than once before finishing a Long Rest, there is a cumulative 25 percent chance for each casting after the first that you get no answer.',
             **kwargs
         )
 
 
 class CommuneWithNature(Spell):
-    def __init__(self, level=5, casting_time='1 minute (Ritual)', duration='Instantaneous', **kwargs):
+    def __init__(self, level=5, casting_time='1 minute', duration='Instantaneous', **kwargs):
         super().__init__(
             name='Commune With Nature',
             level=level,
@@ -4750,6 +4779,7 @@ class CommuneWithNature(Spell):
             range_='Self',
             components=['V', 'S'],
             duration=duration,
+            ritual=True,
             description="You commune with nature spirits and gain knowledge of the surrounding area. In the outdoors, the spell gives you knowledge of the area within 3 miles of you. In caves and other natural underground settings, the radius is limited to 300 feet. The spell doesn't function where nature has been replaced by construction, such as in castles and settlements. Choose three of the following facts; you learn those facts as they pertain to the spell's area: Locations of settlements Locations of portals to other planes of existence Location of one Challenge Rating 10+ creature (DM's choice) that is a Celestial, an Elemental, a Fey, a Fiend, or an Undead The most prevalent kind of plant, mineral, or Beast (you choose which to learn) Locations of bodies of water For example, you could determine the location of a powerful monster in the area, the locations of bodies of water, and the locations of any towns.",
             **kwargs
         )
@@ -4804,7 +4834,7 @@ class ConjureVolley(Spell):
 
 
 class ContactOtherPlane(Spell):
-    def __init__(self, level=5, casting_time='1 minute (Ritual)', duration='1 minute', **kwargs):
+    def __init__(self, level=5, casting_time='1 minute', duration='1 minute', **kwargs):
         super().__init__(
             name='Contact Other Plane',
             level=level,
@@ -4813,6 +4843,7 @@ class ContactOtherPlane(Spell):
             range_='Self',
             components=['V'],
             duration=duration,
+            ritual=True,
             description='You mentally contact a demigod, the spirit of a long-dead sage, or some other knowledgeable entity from another plane. Contacting this otherworldly intelligence can break your mind. When you cast this spell, make a DC 15 Intelligence saving throw. On a successful save, you can ask the entity up to five questions. You must ask your questions before the spell ends. The DM answers each question with one word, such as "yes," "no," "maybe," "never," "irrelevant," or "unclear" (if the entity doesn\'t know the answer to the question). If a one-word answer would be misleading, the DM might instead offer a short phrase as an answer. On a failed save, you take 6d6 Psychic damage and have the Incapacitated condition until you finish a Long Rest. A Greater Restoration spell cast on you ends this effect.',
             **kwargs
         )
@@ -5139,7 +5170,7 @@ class RaiseDead(Spell):
 
 
 class RarysTelepathicBond(Spell):
-    def __init__(self, level=5, casting_time='Action (Ritual)', duration='1 hour', **kwargs):
+    def __init__(self, level=5, casting_time='Action', duration='1 hour', **kwargs):
         super().__init__(
             name="Rary's Telepathic Bond",
             level=level,
@@ -5149,6 +5180,7 @@ class RarysTelepathicBond(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='two eggs')],
             duration=duration,
+            ritual=True,
             description="You forge a telepathic link among up to eight willing creatures of your choice within range, psychically linking each creature to all the others for the duration. Creatures that can't communicate in any languages aren't affected by this spell. Until the spell ends, the targets can communicate telepathically through the bond whether or not they share a language. The communication is possible over any distance, though it can't extend to other planes of existence.",
             **kwargs
         )
@@ -5545,7 +5577,7 @@ class Disintegrate(Spell):
 
 
 class DrawmijsInstantSummons(Spell):
-    def __init__(self, level=6, casting_time='1 minute (Ritual)', duration='Until dispelled', **kwargs):
+    def __init__(self, level=6, casting_time='1 minute', duration='Until dispelled', **kwargs):
         super().__init__(
             name="Drawmij's Instant Summons",
             level=level,
@@ -5555,6 +5587,7 @@ class DrawmijsInstantSummons(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='a sapphire worth 1,000+ GP', value=1000)],
             duration=duration,
+            ritual=True,
             description="You touch the sapphire used in the casting and an object weighing 10 pounds or less whose longest dimension is 6 feet or less. The spell leaves an Invisible mark on that object and invisibly inscribes the object's name on the sapphire. Each time you cast this spell, you must use a different sapphire. Thereafter, you can take a Magic action to speak the object's name and crush the sapphire. The object instantly appears in your hand regardless of physical or planar distances, and the spell ends. If another creature is holding or carrying the object, crushing the sapphire doesn't transport it, but instead you learn who that creature is and where that creature is currently located.",
             **kwargs
         )
@@ -5627,7 +5660,7 @@ class FleshToStone(Spell):
 
 
 class Forbiddance(Spell):
-    def __init__(self, level=6, casting_time='10 minutes (Ritual)', duration='1 day', **kwargs):
+    def __init__(self, level=6, casting_time='10 minutes', duration='1 day', **kwargs):
         super().__init__(
             name='Forbiddance',
             level=level,
@@ -5637,6 +5670,7 @@ class Forbiddance(Spell):
             components=['V', 'S', 'M'],
             materials_required=[Item(name='ruby dust worth 1,000+ GP', value=1000)],
             duration=duration,
+            ritual=True,
             description="You create a ward against magical travel that protects up to 40,000 square feet of floor space to a height of 30 feet above the floor. For the duration, creatures can't teleport into the area or use portals, such as those created by the Gate spell, to enter the area. The spell proofs the area against planar travel, and therefore prevents creatures from accessing the area by way of the Astral Plane, the Ethereal Plane, the Feywild, the Shadowfell, or the Plane Shift spell. In addition, the spell damages types of creatures that you choose when you cast it. Choose one or more of the following: Aberrations, Celestials, Elementals, Fey, Fiends, and Undead. When a creature of a chosen type enters the spell's area for the first time on a turn or ends its turn there, the creature takes 5d10 Radiant or Necrotic damage (your choice when you cast this spell). You can designate a password when you cast the spell. A creature that speaks the password as it enters the area takes no damage from the spell. The spell's area can't overlap with the area of another Forbiddance spell. If you cast Forbiddance every day for 30 days in the same location, the spell lasts until it is dispelled, and the Material components are consumed on the last casting.",
             **kwargs
         )
