@@ -6,11 +6,13 @@ from src.classes._base import (
 )
 
 
+PREPARABLE_SPELLS = [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 18, 19, 21, 22, 23, 24, 25]
+
+
 class Wizard(Class):
     WIZARD_SUBCLASSES = ["Abjurer", "Diviner", "Evoker", "Illusionist"]
     # Cantrips known per level (1-20)
     CANTRIPS_KNOWN = [3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]
-    PREPARABLE_SPELLS = [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 18, 19, 21, 22, 23, 24, 25]
 
     def __init__(self, level):
         super().__init__(name="Wizard", level=level)
@@ -253,7 +255,7 @@ class Wizard(Class):
         # Update spell slots to reflect current level
         self.spell_slots = dict(_FULL_CASTER_SLOTS[level - 1])
         self.spell_slots_remaining = dict(_FULL_CASTER_SLOTS[level - 1])
-        self.preparable_spells = self.PREPARABLE_SPELLS[self.level - 1]
+        self.preparable_spells = PREPARABLE_SPELLS[self.level - 1]
         self.completed_levelup_to = level
 
     # ── Class interface ────────────────────────────────────────────────────────

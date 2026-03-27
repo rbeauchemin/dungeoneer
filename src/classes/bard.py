@@ -7,30 +7,34 @@ from src.classes._base import (
 )
 
 
+# Bardic Inspiration die by level
+BARDIC_INSPIRATION_DIE = {
+    **{lv: "1d6" for lv in range(1, 5)},
+    **{lv: "1d8" for lv in range(5, 10)},
+    **{lv: "1d10" for lv in range(10, 15)},
+    **{lv: "1d12" for lv in range(15, 21)},
+}
+
+# Cantrips known by level (index 0 = level 1)
+CANTRIPS_KNOWN = [2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+
+# Prepared spells by level
+PREPARABLE_SPELLS = [4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22]
+
+MUSICAL_INSTRUMENTS = [
+    "Bagpipes", "Drum", "Dulcimer", "Flute", "Horn",
+    "Lute", "Lyre", "Pan Flute", "Shawm", "Viol",
+]
+
+BARD_SUBCLASSES = [
+    "College of Dance",
+    "College of Glamour",
+    "College of Lore",
+    "College of Valor",
+]
+
+
 class Bard(Class):
-    # Bardic Inspiration die by level
-    BARDIC_INSPIRATION_DIE = {
-        **{lv: "1d6" for lv in range(1, 5)},
-        **{lv: "1d8" for lv in range(5, 10)},
-        **{lv: "1d10" for lv in range(10, 15)},
-        **{lv: "1d12" for lv in range(15, 21)},
-    }
-
-    # Cantrips known by level (index 0 = level 1)
-    CANTRIPS_KNOWN = [2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
-
-    MUSICAL_INSTRUMENTS = [
-        "Bagpipes", "Drum", "Dulcimer", "Flute", "Horn",
-        "Lute", "Lyre", "Pan Flute", "Shawm", "Viol",
-    ]
-
-    BARD_SUBCLASSES = [
-        "College of Dance",
-        "College of Glamour",
-        "College of Lore",
-        "College of Valor",
-    ]
-
     def __init__(self, level):
         super().__init__(name="Bard", level=level)
         self.todo = []
@@ -43,30 +47,32 @@ class Bard(Class):
         self.proficiencies["Armor"] = ["Light"]
         self.proficiencies["Weapons"] = ["Simple"]
         self.proficiencies["Saving Throws"] = ["Dexterity", "Charisma"]
-        self.proficiencies["Skills"] = []  # Chosen via todo
-        self.completed_levelup_to = 1
+        self.proficiencies["Skills"] = list(dnd_skills.keys())  # may choose from any skill
+        self.completed_levelup_to = 0
 
-    # ── helpers ──────────────────────────────────────────────────────────────
+    # ── helpers ───────────────────────────────────────────────────────────────
 
-    def _set_skill_proficiencies(self, character: Character, choices):
+    def _set_skill_proficiencies(self, character: Character, choices, **kwargs):
         character.proficiencies["Skills"] += choices
 
-    def _set_instrument_proficiencies(self, character: Character, choices):
+    def _set_instrument_proficiencies(self, character: Character, choices, **kwargs):
         character.proficiencies["Tools"] += choices
 
-    def _apply_expertise(self, character: Character, choices):
+    def _apply_expertise(self, character: Character, choices, **kwargs):
         if not hasattr(character, "expertise"):
             character.expertise = []
         character.expertise += choices
 
-    def _apply_magical_secrets(self, character: Character, choices):
+    def _apply_magical_secrets(self, character: Character, choices, **kwargs):
         # TODO: resolve spell names to Spell objects from the full spell list
         if not hasattr(character, "magical_secrets"):
             character.magical_secrets = []
         character.magical_secrets += choices
 
-    def _set_subclass(self, character: Character, choices):
+    def _set_subclass(self, character: Character, choices, **kwargs):
         self.subclass = choices[0]
+
+    # ── Equipment ─────────────────────────────────────────────────────────────
 
     def select_starting_equipment(self, character: Character, choices, **kwargs):
         if "Gold" in choices:
@@ -79,13 +85,80 @@ class Bard(Class):
             character.gold += 19
         return character
 
-    # ── feature application ───────────────────────────────────────────────────
+    # ── Bardic Inspiration helpers ─────────────────────────────────────────────
 
-    def _apply_level(self, character: Character, level: int):
-        """Apply all features gained at the given level."""
+    def _build_bardic_inspiration(self, character: Character):
+        insp_die = BARDIC_INSPIRATION_DIE[self.level]
+        return Spell(
+            name="Bardic Inspiration",
+            casting_time="Bonus Action",
+            range_="60 feet",
+            components=[],
+            duration="1 minute",
+            description=(
+                f"You inspire a creature within 60 feet that can hear you. "
+                f"Once in the next minute, that creature can roll a Bardic "
+                f"Inspiration die ({insp_die}) and add it to one ability check, "
+                f"attack roll, or saving throw it makes. A creature can have "
+                f"only one Bardic Inspiration die at a time. You can use this "
+                f"feature a number of times equal to your Charisma modifier "
+                f"(minimum once)."
+            ),
+            uses_left=max(1, (character.ability_scores.get("Charisma", 10) - 10) // 2),
+            cooldown="Long Rest",
+        )
 
-        if level == 2:
-            # Expertise: choose 2 proficient skills or tools to double proficiency bonus on
+    def _refresh_bardic_inspiration(self, character: Character):
+        """Replace Bardic Inspiration with an updated version for the current level."""
+        character.special_abilities = [
+            a for a in character.special_abilities if a.name != "Bardic Inspiration"
+        ] + [self._build_bardic_inspiration(character)]
+
+    # ── Level feature application ──────────────────────────────────────────────
+
+    def _apply_level_features(self, character: Character, level: int):
+        """Apply all Bard features unlocked at the given level."""
+
+        if level == 1:
+            # ── Bardic Inspiration ─────────────────────────────────────────────
+            if not isinstance(character.special_abilities, list):
+                character.special_abilities = []
+            character.special_abilities.append(self._build_bardic_inspiration(character))
+
+            # ── Spellcasting ───────────────────────────────────────────────────
+            # Spell slots are tracked on self.spell_slots / self.spell_slots_remaining
+            character.special_traits.append("Spellcasting (Charisma)")
+
+            # ── Level 1 todos: resolved LIFO so order here is instruments → skills → equipment
+            character.todo.extend([
+                {
+                    "Text": (
+                        "Select starting equipment or gold: "
+                        "(Leather Armor, 2 Daggers, Musical Instrument you're proficient in, "
+                        "Entertainer's Pack, 19 GP) or (90 GP)"
+                    ),
+                    "Options": ["Starting Equipment", "Gold"],
+                    "Function": self.select_starting_equipment,
+                },
+                {
+                    "Text": (
+                        "Choose 3 skills to gain proficiency in "
+                        "(Bards may choose from any skill)."
+                    ),
+                    "Options": list(dnd_skills.keys()),
+                    "Choices": 3,
+                    "Function": self._set_skill_proficiencies,
+                },
+                {
+                    "Text": "Choose 3 musical instruments to gain proficiency with.",
+                    "Options": MUSICAL_INSTRUMENTS,
+                    "Choices": 3,
+                    "Function": self._set_instrument_proficiencies,
+                },
+            ])
+
+        elif level == 2:
+            # ── Expertise ──────────────────────────────────────────────────────
             character.todo.append({
                 "Text": (
                     "Expertise (Level 2): Choose 2 skills or tools you are proficient in "
@@ -95,25 +168,38 @@ class Bard(Class):
                 "Choices": 2,
                 "Function": self._apply_expertise,
             })
-            # Jack of All Trades: add half proficiency to checks not using proficiency
+            # ── Jack of All Trades ─────────────────────────────────────────────
+            # Add half proficiency bonus to ability checks not using your proficiency bonus.
             character.special_traits.append("Jack of All Trades")
 
         elif level == 3:
+            # ── Bard College (subclass) ────────────────────────────────────────
             character.todo.append({
                 "Text": "Choose a Bard College (subclass).",
-                "Options": self.BARD_SUBCLASSES,
+                "Options": BARD_SUBCLASSES,
+                "Choices": 1,
                 "Function": self._set_subclass,
             })
             # TODO: Apply subclass level 3 features based on chosen college
 
+        elif level == 4:
+            # ASI handled by base Class.level_up; nothing extra for Bard at level 4
+            pass
+
         elif level == 5:
-            # Font of Inspiration: Bardic Inspiration recharges on Short Rest
+            # ── Font of Inspiration ────────────────────────────────────────────
+            # Bardic Inspiration now recharges on a Short Rest
             for ability in character.special_abilities:
                 if ability.name == "Bardic Inspiration":
                     ability.cooldown = "Short Rest"
             character.special_traits.append("Font of Inspiration")
 
+        elif level == 6:
+            # TODO: Apply subclass level 6 features based on chosen college
+            pass
+
         elif level == 7:
+            # ── Countercharm ───────────────────────────────────────────────────
             character.special_abilities.append(
                 Spell(
                     name="Countercharm",
@@ -130,8 +216,12 @@ class Bard(Class):
                 )
             )
 
+        elif level == 8:
+            # ASI handled by base Class.level_up
+            pass
+
         elif level == 9:
-            # Second Expertise selection
+            # ── Expertise (second selection) ───────────────────────────────────
             character.todo.append({
                 "Text": (
                     "Expertise (Level 9): Choose 2 more skills or tools you are "
@@ -143,7 +233,7 @@ class Bard(Class):
             })
 
         elif level == 10:
-            # Magical Secrets: learn 2 spells from any class list
+            # ── Magical Secrets ────────────────────────────────────────────────
             character.todo.append({
                 "Text": (
                     "Magical Secrets (Level 10): Choose 2 spells from any class's "
@@ -152,19 +242,51 @@ class Bard(Class):
                 ),
                 # TODO: Replace with a real cross-class spell list when available
                 "Options": ["(Enter spell name — see full spell list)"],
-                "Choices": 1,
+                "Choices": 2,
                 "Function": self._apply_magical_secrets,
             })
 
+        elif level == 11:
+            pass
+
+        elif level == 12:
+            # ASI handled by base Class.level_up
+            pass
+
+        elif level == 13:
+            pass
+
         elif level == 14:
-            # TODO: Subclass level-14 feature
+            # TODO: Apply subclass level 14 features based on chosen college
+            pass
+
+        elif level == 15:
+            pass
+
+        elif level == 16:
+            # ASI handled by base Class.level_up
+            pass
+
+        elif level == 17:
             pass
 
         elif level == 18:
-            character.special_traits.append("Superior Bardic Inspiration")
-            # Superior Bardic Inspiration: regain one use on initiative roll if at 0
+            # ── Superior Inspiration ──────────────────────────────────────────
+            character.special_traits.append("Superior Inspiration")
+            # When you roll Initiative and have no uses of Bardic Inspiration left,
+            # you regain one use.
+
+        elif level == 19:
+            # ── Epic Boon ─────────────────────────────────────────────────────
+            character.todo.append({
+                "Text": "Choose an Epic Boon feat.",
+                "Options": ["Epic Boon"],
+                "Choices": 1,
+                "Function": self.select_feat,
+            })
 
         elif level == 20:
+            # ── Words of Creation ─────────────────────────────────────────────
             character.special_abilities.append(
                 Spell(
                     name="Words of Creation",
@@ -185,92 +307,38 @@ class Bard(Class):
                 )
             )
 
-        # Update Bardic Inspiration die if it increases at this level
-        prev_die = self.BARDIC_INSPIRATION_DIE.get(level - 1, "1d6")
-        new_die = self.BARDIC_INSPIRATION_DIE[level]
-        if new_die != prev_die:
-            for ability in character.special_abilities:
-                if ability.name == "Bardic Inspiration":
-                    ability.description = ability.description.replace(
-                        f"({prev_die})", f"({new_die})"
-                    )
+        # ── Bardic Inspiration die update ─────────────────────────────────────
+        if level > 1:
+            prev_die = BARDIC_INSPIRATION_DIE.get(level - 1, "1d6")
+            new_die = BARDIC_INSPIRATION_DIE[level]
+            if new_die != prev_die:
+                for ability in character.special_abilities:
+                    if ability.name == "Bardic Inspiration":
+                        ability.description = ability.description.replace(
+                            f"({prev_die})", f"({new_die})"
+                        )
 
-        # Update spell slots
+        # ── Spell slots update ────────────────────────────────────────────────
         self.spell_slots = dict(_FULL_CASTER_SLOTS[level - 1])
         self.spell_slots_remaining = dict(_FULL_CASTER_SLOTS[level - 1])
+        self.preparable_spells = PREPARABLE_SPELLS[self.level - 1]
         self.completed_levelup_to = level
 
-    # ── apply_to_character ────────────────────────────────────────────────────
+    # ── Class interface ────────────────────────────────────────────────────────
 
     def apply_to_character(self, character: Character):
         character = super().apply_to_character(character)
-        self.completed_levelup_to = 1
-
-        # Normalize special_abilities to a list (base Species uses a dict)
         if not isinstance(character.special_abilities, list):
             character.special_abilities = []
-
-        insp_die = self.BARDIC_INSPIRATION_DIE[self.level]
-
-        # ── Level 1 ability: Bardic Inspiration ──────────────────────────────
-        character.special_abilities += [
-            Spell(
-                name="Bardic Inspiration",
-                casting_time="Bonus Action",
-                range_="60 feet",
-                components=[],
-                duration="1 minute",
-                description=(
-                    f"You inspire a creature within 60 feet that can hear you. "
-                    f"Once in the next minute, that creature can roll a Bardic "
-                    f"Inspiration die ({insp_die}) and add it to one ability check, "
-                    f"attack roll, or saving throw it makes. A creature can have "
-                    f"only one Bardic Inspiration die at a time. You can use this "
-                    f"feature a number of times equal to your Charisma modifier "
-                    f"(minimum once)."
-                ),
-                uses_left=max(1, (character.ability_scores.get("Charisma", 10) - 10) // 2),
-                cooldown="Long Rest",
-            )
-        ]
-
-        # ── Apply features for levels 2–N first (they stack at bottom of todo)
-        for lv in range(2, self.level + 1):
-            self._apply_level(character, lv)
-
-        # ── Level 1 todos (appended last → resolved first, LIFO) ─────────────
-        # Resolution order: instruments → skills → equipment
-        character.todo.extend([
-            {
-                "Text": (
-                    "Select starting equipment or gold: "
-                    "(Leather Armor, 2 Daggers, Musical Instrument you're proficient in, "
-                    "Entertainer's Pack, 19 GP) or (105 GP)"
-                ),
-                "Options": ["Starting Equipment", "Gold"],
-                "Function": self.select_starting_equipment,
-            },
-            {
-                "Text": (
-                    "Choose 3 skills to gain proficiency in "
-                    "(Bards may choose from any skill)."
-                ),
-                "Options": list(dnd_skills.keys()),
-                "Choices": 3,
-                "Function": self._set_skill_proficiencies,
-            },
-            {
-                "Text": "Choose 3 musical instruments to gain proficiency with.",
-                "Options": self.MUSICAL_INSTRUMENTS,
-                "Choices": 3,
-                "Function": self._set_instrument_proficiencies,
-            },
-        ])
+        # Apply features for every level from 1 up to the bard's starting level
+        for lvl in range(1, self.level + 1):
+            self._apply_level_features(character, lvl)
+        self.completed_levelup_to = self.level
         return character
 
-    # ── level_up ──────────────────────────────────────────────────────────────
-
     def level_up(self, character: Character):
-        super().level_up(character)
-        self._apply_level(character, self.level)
+        super().level_up(character)  # increments self.level, handles ASI at 4/8/12/16
+        self._apply_level_features(character, self.level)
+        # Always refresh Bardic Inspiration to reflect updated die size
+        self._refresh_bardic_inspiration(character)
         return character
