@@ -85,18 +85,34 @@ class MagicInitiate(Feat):
         self.description = "Choose a class from the following list: Cleric, Druid, Wizard. You learn two cantrips of your choice from that class's spell list. In addition, choose one 1st-level spell from that same list. You learn that spell and can cast it at its lowest level. Once you cast it, you must finish a long rest before you can cast it again using this feat."
 
     def apply_to_character(self, character: Character):
-        character.todo.append(
+        from src.spells import get_spells
+        character.todo.extend([
             {
-                "Text": f"Choose two cantrips and one 1st-level spell from the {self.spell_list} spell list.",
-                "Options": [],  # TODO: Fill in options based on spell list
-                "Function": self.select_spells,
-                "Choices": 3
+                "Text": f"Choose one 1st-level spell from the {self.spell_list} spell list.",
+                "Options": [_.name for _ in get_spells(classes=[self.spell_list], levels=[1])],
+                "Function": self._select_spells,
+                "Choices": 1
+            },
+            {
+                "Text": f"Choose two cantrips from the {self.spell_list} spell list.",
+                "Options": [_.name for _ in get_spells(classes=[self.spell_list], levels=[0])],
+                "Function": self._select_spells,
+                "Choices": 2
             }
-        )
+        ])
 
-    def select_spells(self, character: Character, choices):
+    def _select_spells(self, character: Character, choices):
+        from src.spells import get_spells
+        spells = get_spells(classes=[self.spell_list], levels=[0, 1])
         for choice in choices:
-            character.spells.append(choice)
+            adding_spell = None
+            for spell in spells:
+                if spell.name == choice:
+                    adding_spell = spell
+                    break
+            if adding_spell is None:
+                raise Exception(f"{choice} is not a valid spell choice.")
+            character.spells.append(adding_spell)
 
 
 MagicInitiateCleric = MagicInitiate(spell_list="Cleric")

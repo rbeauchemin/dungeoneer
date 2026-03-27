@@ -44,5 +44,24 @@ class Item():
                     return
                 else:
                     print(f"{character.name} does not have {quantity} {self.name} in their inventory. They have {item.quantity}.")
-                    
+
         print(f"{character.name} does not have {self.name} in their inventory.")
+
+
+class SpellBook(Item):
+    def __init__(self, name="Spellbook", description="A book containing spells that a spellcaster can prepare and cast.", **kwargs):
+        super().__init__(name=name, description=description, type="Miscellaneous", **kwargs)
+        self.known_spells = kwargs.get("known_spells", [])
+        self.prepared_spells = kwargs.get("prepared_spells", [])
+        self.weight = 3
+
+    def add_spell(self, spell):
+        from src.spells import Spell
+        if isinstance(spell, str):
+            import importlib
+            module = importlib.import_module("src.spells")
+            spell = getattr(module, spell, None)()
+        if not isinstance(spell, Spell):
+            print(f"{spell} is not a valid spell.")
+            return
+        self.known_spells.append(spell)

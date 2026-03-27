@@ -70,6 +70,7 @@ class Character:
         self.climbing_speed = self.species.climbing_speed
         self.spells = self.species.spells
         self.spells += spells
+        self.prepared_spells = []
         self._base_resistances = list(self.species.resistances)
         self._base_immunities = list(self.species.immunities)
         self.vision = self.species.vision
@@ -510,6 +511,36 @@ class Character:
             target.current_hp = 1
             target.add_condition("Unconscious")
 
+    def prepare_spell(self, spell):
+        from src.spells import get_spells
+        preparable_spells = sum([_.preparable_spells for _ in self.classes if hasattr(_, "preparable_spells")]) - len(self.prepared_spells)
+        if preparable_spells <= 0:
+            print("You cannot prepare any more spells.")
+            return
+        spellbook = None
+        for item in self.inventory:
+            if item.name.lower() == "spellbook":
+                spellbook = item
+                break
+        if spellbook is None:
+            print("You don't have a spellbook to prepare spells from.")
+            return
+        if isinstance(spell, str):
+            spells = get_spells(classes=[_.name for _ in self.classes])
+            for s in spells:
+                if s.name == spell:
+                    spell = s
+                    break
+        if isinstance(spell, str):
+            print(f"{spell} is not a valid spell choice.")
+            return
+        for s in spellbook.known_spells:
+            if s.name == spell.name:
+                self.prepared_spells.append(s)
+                print(f"{self.name} has prepared the spell {s.name}. You have {preparable_spells - 1} spell preparations left.")
+                return
+        print(f"You don't know the spell {spell.name} or it's not in your spellbook.")
+
     def cast_spell(self, spell, targets=[]):
         if any(getattr(e, "prevents_casting", False) for e in self.active_effects):
             print(f"{self.name} cannot cast spells right now.")
@@ -625,6 +656,7 @@ class Character:
             from src.conditions import Exhaustion
             self.current_hp = self.max_hp
             self.remove_condition("Exhaustion")
+            self.prepared_spells = []
         else:
             # TODO: Implement short rest logic with hit die
             pass

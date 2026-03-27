@@ -54,4 +54,10 @@ def handle_todo(character: Character):
             selected.append(choice)
             break
 
-    func(character, selected)
+    try:
+        func(character, selected)
+    except Exception as e:
+        print(f"Error processing todo choice: {e}")
+        print("Please resolve this issue then try again.")
+        # Add back the popped todo to top of stack so it can be resolved after the issue is fixed
+        character.todo.append(todo)

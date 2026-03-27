@@ -1,3 +1,5 @@
+import inspect
+import sys
 from src.items.items import Item
 
 # ── Spell cast helpers ─────────────────────────────────────────────────────
@@ -305,6 +307,25 @@ def _f_utility(label=''):
         if label:
             print(f'  {caster.name}: {label}.')
     return cast
+
+
+def get_spells(classes=None, levels=None):
+    """
+    Returns a list of all classes defined within the current Python file (module).
+    """
+    current_module = sys.modules[__name__]
+    spells = []
+    for name, obj in inspect.getmembers(current_module, inspect.isclass):
+        if name == 'Spell' or str(obj.__module__) != str(current_module.__name__):
+            continue
+        obj = obj()
+        # Filter out imported classes by checking if the class is defined in the current module
+        if classes is not None and not any(cls in obj.classes for cls in classes):
+            continue
+        if levels is not None and not any(obj.level == lvl for lvl in levels):
+            continue
+        spells.append(obj)
+    return spells
 
 
 class Spell:
@@ -7930,4 +7951,3 @@ _SPELL_CAST_REGISTRY.update({
                                     radius=30, cond_cls=Frightened, cond_dur=10),
     'Wish':            _f_utility('Wish — anything is possible'),
 })
-

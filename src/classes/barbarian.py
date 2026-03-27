@@ -217,6 +217,9 @@ class Barbarian(Class):
             # Recompute max_hp for the Con increase (+2 bonus from +4 Con)
             character.max_hp += 2
             character.current_hp = min(character.current_hp + 2, character.max_hp)
+        
+        # Always refresh Rage to reflect updated uses and damage bonus
+        self._refresh_rage(character)
 
     def _activate_reckless_attack(self, caster):
         from src.conditions import RecklessAttacking
@@ -291,6 +294,4 @@ class Barbarian(Class):
     def level_up(self, character: Character):
         super().level_up(character)  # increments self.level
         self._apply_level_features(character, self.level)
-        # Always refresh Rage to reflect updated uses and damage bonus
-        self._refresh_rage(character)
         return character

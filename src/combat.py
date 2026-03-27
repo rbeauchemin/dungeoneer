@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import math
 import re
+import shlex
 
 from src.common import roll_dice
 from src.creatures import Character
@@ -526,6 +527,7 @@ class Combat:
             print(f"  {target.name} is {dist} ft away — out of melee reach "
                   f"({self.MELEE_REACH} ft). Move closer or equip a ranged weapon.")
             return player
+        # TODO: Check for specific weapon range if weapon_name given or if player has a single equipped weapon with a range.
 
         if player.actions_left + player.attack_actions_left > 0:
             if player.actions_left > 0:
@@ -582,6 +584,8 @@ class Combat:
         if any(t in self._alive_monsters() for t in targets):
             player._forced_save_this_turn = True
 
+        # TODO: Check for spell range if target is not self and spell has a range component (Touch = melee)
+
         print(f"  {player.name} casts {spell.name}!")
         player.cast_spell(spell.name, targets=targets)
 
@@ -633,6 +637,7 @@ class Combat:
             player._forced_save_this_turn = True
 
         print(f"  {player.name} uses {ability.name}!")
+        # TODO: Check range on abilities if they have a range component
         player.use_special_ability(ability.name, targets=targets)
 
         if is_free:
@@ -654,6 +659,8 @@ class Combat:
 
     def _list_spells(self, player):
         spells = getattr(player, "spells", [])
+        # check for prepared spells
+        spells += [s for s in getattr(player, "prepared_spells", []) if s not in spells]
         if not spells:
             print("  No spells known.")
             return
@@ -740,7 +747,7 @@ class Combat:
             if not raw:
                 continue
 
-            parts = raw.split()
+            parts = shlex.split(raw)
             cmd = parts[0].lower()
 
             if cmd in ("pass", "skip", "end", "done"):
