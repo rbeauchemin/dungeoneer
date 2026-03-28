@@ -302,7 +302,7 @@ class Monster:
 
     # ── Combat ─────────────────────────────────────────────────────────────
 
-    def attack(self, target, action_name: str = None, lethal: bool = True):
+    def attack(self, target, action_name: str = None, lethal: bool = True, extra_disadvantage: int = 0):
         """Perform a monster attack against a target using its actions list."""
         action = None
         if action_name:
@@ -319,6 +319,10 @@ class Monster:
         attack_bonus = action.get("attack_bonus", self.proficiency_bonus + self.get_ability_bonus("Strength"))
         print(f"{self.name} attacks {target.name} with {action['name']}.")
         roll = roll_dice(1, 20)
+        if extra_disadvantage > 0:
+            roll2 = roll_dice(1, 20)
+            roll = min(roll, roll2)
+            print(f"Disadvantage: rolled {roll} and {roll2}, using {roll}")
         total = roll + attack_bonus
         target_ac = target.ac() if callable(target.ac) else target.ac
         hit = total >= target_ac or roll == 20

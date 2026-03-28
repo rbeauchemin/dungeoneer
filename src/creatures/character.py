@@ -123,7 +123,7 @@ class Character:
         # TODO: create a better actions handling system that accounts for multiattack, legendary actions, reactions, bonus actions, and action types (e.g. some abilities can only be used as a reaction, some can only be used on the turn you take the Attack action, etc.)
 
     def __str__(self):
-        return f"{self.name}, a level {self.level} {self.species} {self.class_} with equipment: {', '.join(self.inventory)}"
+        return f"{self.name}, a level {self.level} {self.species} {'/'.join([cls.name for cls in self.classes])} with equipment: {', '.join(self.inventory)}"
 
     # ── Computed stat properties ─────────────────────────────────────────────
 
@@ -434,7 +434,7 @@ class Character:
     def get_skill_bonus(self, skill):
         return self.get_ability_bonus(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
 
-    def attack(self, target, weapon_name: Optional[str] = None, action_type: str = "Action", lethal: bool = True):
+    def attack(self, target, weapon_name: Optional[str] = None, action_type: str = "Action", lethal: bool = True, extra_disadvantage: int = 0):
         advantage_counter = 0
         charmed_by = [_.by for _ in self.active_effects if _.name == "Charmed"]
         for charmer in charmed_by:
@@ -467,6 +467,7 @@ class Character:
         # give extra bonus to attack advantage if target marked with advantage to be attacked
         advantage_counter += target.advantages["ToBeAttacked"]
         advantage_counter -= target.disadvantages["ToBeAttacked"]
+        advantage_counter -= extra_disadvantage
         print(f"{self.name} attacks {target.name} with {weapon.name}.")
         success, total, crit_fail, crit_success = self.roll_check(None, beat=target.ac(), bonus=ability_bonus + proficiency_bonus, check_type="Attack", advantage_counter=advantage_counter)
         dice_split = [int(_) for _ in weapon.damage.split("d")]
@@ -706,7 +707,7 @@ class Character:
                 "movement_used": 0, "movement_remaining": round(avail),
                 "blocked": False,
             }
-
+        # TODO: The assumption that z > 0 always means flying and z < 0 always means swimming is hacky. Fix this to use map_ cell properties instead of path z-values, which are just a proxy for elevation changes and don't necessarily indicate the mode of movement.
         needs_fly  = any(pz > 0 for _, _, pz in path)
         needs_swim = any(pz < 0 for _, _, pz in path)
         if needs_fly:

@@ -158,6 +158,56 @@ _RANGED_KEYWORDS = {
 }
 
 
+def _resolve_attack_weapon(player, weapon_name):
+    """Return the weapon item that would be used, mirroring character.attack() selection logic."""
+    from src.items import Unarmed
+    weapons = [Unarmed().on_equip(player)]
+    for item in player.equipped_items:
+        if item.type == "Weapon":
+            weapons.append(item)
+    if len(weapons) < 3 and weapon_name is None:
+        return weapons[-1]
+    if weapon_name is not None:
+        for item in weapons:
+            if item.name == weapon_name:
+                return item
+    return weapons[-1]
+
+
+def _is_ranged_weapon(weapon) -> bool:
+    return weapon.melee_or_ranged == "Ranged" or "Thrown" in getattr(weapon, "properties", [])
+
+
+def _parse_range_ft(range_str) -> int | None:
+    """Parse a spell/ability range string to feet.
+    Returns None for 'Self' (no distance check), 5 for 'Touch', or the numeric value."""
+    if range_str is None:
+        return None
+    s = str(range_str).strip().lower()
+    if s == "self":
+        return None
+    if s == "touch":
+        return 5
+    m = re.search(r"(\d+)", s)
+    return int(m.group(1)) if m else None
+
+
+def _enemies_in_melee_range(combat_obj, creature) -> list:
+    """Conscious enemies within melee reach of *creature*."""
+    sides = combat_obj._alive_monsters if creature in combat_obj.players else combat_obj._alive_players
+    result = []
+    for e in sides():
+        if _is_incapacitated(e):
+            continue
+        try:
+            dist = combat_obj.map.distance_ft(creature, e)
+        except ValueError:
+            continue
+        if dist <= combat_obj.MELEE_REACH:
+            result.append(e)
+    return result
+
+
 def _ranged_actions(monster) -> list[dict]:
     """Monster actions that are ranged — either via an explicit ``range`` key
     greater than 5 ft, or whose name contains a known ranged-weapon keyword."""
@@ -188,16 +238,6 @@ def _best_action(actions: list[dict]) -> dict | None:
 
     return max(actions, key=avg_dmg)
 
-
-def _has_ranged_weapon(player) -> bool:
-    """True if the player has a Ranged or Thrown weapon equipped."""
-    for item in player.equipped_items:
-        if item.type == "Weapon":
-            if item.melee_or_ranged == "Ranged":
-                return True
-            if "Thrown" in getattr(item, "properties", []):
-                return True
-    return False
 
 
 # ── Combat ────────────────────────────────────────────────────────────────────
@@ -298,10 +338,10 @@ class Combat:
 
     # ── Monster attack (tracks damage for rage-end check) ─────────────────────
 
-    def _monster_attack(self, monster, target, action_name=None):
+    def _monster_attack(self, monster, target, action_name=None, extra_disadvantage=0):
         """Execute a monster attack and flag the target if damage was dealt."""
         prev_hp = target.current_hp
-        monster.attack(target, action_name=action_name, lethal=True)
+        monster.attack(target, action_name=action_name, lethal=True, extra_disadvantage=extra_disadvantage)
         if target.current_hp < prev_hp:
             target._took_damage_this_turn = True
         # Relentless Rage: intercept a killing blow while raging
@@ -523,11 +563,30 @@ class Combat:
             return player
 
         dist = self.map.distance_ft(player, target)
-        if not _has_ranged_weapon(player) and dist > self.MELEE_REACH:
-            print(f"  {target.name} is {dist} ft away — out of melee reach "
-                  f"({self.MELEE_REACH} ft). Move closer or equip a ranged weapon.")
-            return player
-        # TODO: Check for specific weapon range if weapon_name given or if player has a single equipped weapon with a range.
+        weapon = _resolve_attack_weapon(player, weapon_name)
+        extra_disadvantage = 0
+
+        if _is_ranged_weapon(weapon):
+            normal_range = getattr(weapon, "normal_range", self.MELEE_REACH)
+            long_range = getattr(weapon, "long_range", normal_range)
+            if dist > long_range:
+                print(f"  {target.name} is {dist} ft away — beyond the maximum range "
+                      f"of {weapon.name} ({long_range} ft).")
+                return player
+            if dist > normal_range:
+                print(f"  {target.name} is {dist} ft away — beyond normal range "
+                      f"({normal_range} ft). Attack has disadvantage.")
+                extra_disadvantage += 1
+            close_enemies = _enemies_in_melee_range(self, player)
+            if close_enemies:
+                names = ", ".join(e.name for e in close_enemies)
+                print(f"  Enemy within melee range ({names}) — ranged attack has disadvantage.")
+                extra_disadvantage += 1
+        else:
+            if dist > self.MELEE_REACH:
+                print(f"  {target.name} is {dist} ft away — out of melee reach "
+                      f"({self.MELEE_REACH} ft). Move closer or equip a ranged weapon.")
+                return player
 
         if player.actions_left + player.attack_actions_left > 0:
             if player.actions_left > 0:
@@ -539,7 +598,7 @@ class Combat:
                 player.attack_actions_left -= 1
             # Attempting an attack (hit or miss) counts for Rage
             player._attacked_this_turn = True
-            player.attack(target, weapon_name=weapon_name, lethal=lethal)
+            player.attack(target, weapon_name=weapon_name, lethal=lethal, extra_disadvantage=extra_disadvantage)
         else:
             print("No attack actions remaining.")
         return player
@@ -584,7 +643,19 @@ class Combat:
         if any(t in self._alive_monsters() for t in targets):
             player._forced_save_this_turn = True
 
-        # TODO: Check for spell range if target is not self and spell has a range component (Touch = melee)
+        # Range check (skip for self-targeted spells)
+        spell_range = _parse_range_ft(getattr(spell, "range_", None))
+        if spell_range is not None:
+            for t in targets:
+                if t is player:
+                    continue
+                try:
+                    dist = self.map.distance_ft(player, t)
+                except ValueError:
+                    continue
+                if dist > spell_range:
+                    print(f"  {t.name} is {dist} ft away — out of range for {spell.name} ({spell_range} ft).")
+                    return player
 
         print(f"  {player.name} casts {spell.name}!")
         player.cast_spell(spell.name, targets=targets)
@@ -636,8 +707,21 @@ class Combat:
         if any(t in self._alive_monsters() for t in targets):
             player._forced_save_this_turn = True
 
+        # Range check (skip for self-targeted abilities)
+        ability_range = _parse_range_ft(getattr(ability, "range_", None))
+        if ability_range is not None:
+            for t in targets:
+                if t is player:
+                    continue
+                try:
+                    dist = self.map.distance_ft(player, t)
+                except ValueError:
+                    continue
+                if dist > ability_range:
+                    print(f"  {t.name} is {dist} ft away — out of range for {ability.name} ({ability_range} ft).")
+                    return player
+
         print(f"  {player.name} uses {ability.name}!")
-        # TODO: Check range on abilities if they have a range component
         player.use_special_ability(ability.name, targets=targets)
 
         if is_free:
