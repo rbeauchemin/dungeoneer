@@ -47,9 +47,7 @@ from src.creatures import Character
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _is_dead(creature) -> bool:
-    return creature.current_hp <= 0 or any(
-        getattr(e, "name", e) == "Dead" for e in creature.active_effects
-    )
+    return any(getattr(e, "name", e) == "Dead" for e in creature.active_effects)
 
 
 def _is_incapacitated(creature) -> bool:
@@ -150,6 +148,57 @@ def _check_relentless_rage(player) -> bool:
         print(f"  {player.name} fails the Relentless Rage save and goes down.")
         player.relentless_rage_dc = dc + 5
         return False
+
+
+def _do_death_save(player) -> None:
+    """Roll a death saving throw for a player at 0 HP.
+
+    D&D 5e rules:
+      - Natural 20 : regain 1 HP and regain consciousness; reset saves.
+      - Natural  1 : 2 failures.
+      - 10–19     : 1 success  → 3 successes = stable (no more saves until hit again).
+      - 2– 9      : 1 failure  → 3 failures  = dead.
+
+    Note: taking damage while downed adds failures separately (see _monster_attack).
+    """
+    if player.death_saves["Succeeded"] >= 3:
+        # Already stabilized — no roll needed
+        print(f"  {player.name} is stable (unconscious, 0 HP).")
+        return
+
+    roll = roll_dice(1, 20)
+    print(f"\n  {player.name} makes a death saving throw ... rolled {roll}.")
+
+    if roll == 20:
+        player.current_hp = 1
+        player.remove_condition("Unconscious")
+        player.death_saves["Failed"] = 0
+        player.death_saves["Succeeded"] = 0
+        print(f"  Natural 20! {player.name} regains consciousness with 1 HP!")
+        return
+
+    if roll == 1:
+        player.death_saves["Failed"] += 2
+        print(f"  Natural 1 — 2 failures! ({player.death_saves['Failed']}/3 failures)")
+    elif roll < 10:
+        player.death_saves["Failed"] += 1
+        print(f"  Failure. ({player.death_saves['Failed']}/3 failures, "
+              f"{player.death_saves['Succeeded']}/3 successes)")
+    else:
+        player.death_saves["Succeeded"] += 1
+        print(f"  Success. ({player.death_saves['Failed']}/3 failures, "
+              f"{player.death_saves['Succeeded']}/3 successes)")
+
+    if player.death_saves["Failed"] >= 3:
+        player.remove_condition("Unconscious")
+        player.add_condition("Dead")
+        player.death_saves["Failed"] = 0
+        player.death_saves["Succeeded"] = 0
+        print(f"  {player.name} has died.")
+        return
+
+    if player.death_saves["Succeeded"] >= 3:
+        print(f"  {player.name} is now stable.")
 
 
 _RANGED_KEYWORDS = {
@@ -314,7 +363,13 @@ class Combat:
             if _is_dead(c):
                 status = " [DEAD]"
             elif _is_incapacitated(c):
-                status = " [DOWN]"
+                if c in self.players and c.current_hp <= 0:
+                    f = c.death_saves["Failed"]
+                    s = c.death_saves["Succeeded"]
+                    stable = " stable" if s >= 3 else ""
+                    status = f" [DOWN — fails {f}/3  saves {s}/3{stable}]"
+                else:
+                    status = " [DOWN]"
             else:
                 conditions = [getattr(e, "name", str(e)) for e in c.active_effects]
                 status = f"  [{', '.join(conditions)}]" if conditions else ""
@@ -340,13 +395,39 @@ class Combat:
 
     def _monster_attack(self, monster, target, action_name=None, extra_disadvantage=0):
         """Execute a monster attack and flag the target if damage was dealt."""
+        is_player = target in self.players
+        was_already_down = is_player and target.current_hp <= 0
+
         prev_hp = target.current_hp
         monster.attack(target, action_name=action_name, lethal=True, extra_disadvantage=extra_disadvantage)
         if target.current_hp < prev_hp:
             target._took_damage_this_turn = True
+
         # Relentless Rage: intercept a killing blow while raging
         if target.current_hp <= 0:
             _check_relentless_rage(target)
+
+        if not is_player or target.current_hp > 0:
+            return  # monster death or Relentless Rage saved the player
+
+        if was_already_down:
+            # Taking damage while downed: 1 death save failure (critical hits would be 2,
+            # but monster.attack doesn't return crit info without a refactor).
+            target.death_saves["Succeeded"] = 0   # no longer stable
+            target.death_saves["Failed"] = min(target.death_saves["Failed"] + 1, 3)
+            print(f"  {target.name} takes damage while downed — 1 death save failure "
+                  f"({target.death_saves['Failed']}/3).")
+            if target.death_saves["Failed"] >= 3:
+                target.remove_condition("Unconscious")
+                target.add_condition("Dead")
+                print(f"  {target.name} has died.")
+        else:
+            # Just dropped to 0 HP — replace Dead (applied by monster.attack) with Unconscious
+            target.remove_condition("Dead")
+            target.add_condition("Unconscious")
+            target.death_saves["Failed"] = 0
+            target.death_saves["Succeeded"] = 0
+            print(f"  {target.name} falls unconscious and is dying!")
 
     # ── Monster AI ────────────────────────────────────────────────────────────
 
@@ -938,11 +1019,7 @@ class Combat:
             self._print_status()
 
             for combatant in list(self._order):
-                if _is_incapacitated(combatant):
-                    # Still tick conditions for incapacitated creatures
-                    expired = _tick_conditions(combatant)
-                    for name in expired:
-                        print(f"  {combatant.name}'s {name} expires.")
+                if _is_dead(combatant):
                     continue
 
                 _reset_turn(combatant)
@@ -950,26 +1027,39 @@ class Combat:
                 expired = _tick_conditions(combatant, start_of_turn=True)
                 # Zone entry/exit check at start of turn
                 self.map.check_zone_transitions(combatant)
-                if combatant in self.players:
-                    self._player_turn(combatant)
-                    # Rage end-condition check: must have acted this turn
-                    _check_rage_end(combatant)
+
+                if _is_incapacitated(combatant):
+                    # Death saving throws for downed players
+                    if combatant in self.players and combatant.current_hp <= 0:
+                        _do_death_save(combatant)
+                    expired += _tick_conditions(combatant)
+                    for name in expired:
+                        print(f"  {combatant.name}'s {name} expires.")
                 else:
-                    self._monster_turn(combatant)
+                    if combatant in self.players:
+                        self._player_turn(combatant)
+                        # Rage end-condition check: must have acted this turn
+                        _check_rage_end(combatant)
+                    else:
+                        self._monster_turn(combatant)
 
-                # Tick timed conditions at the end of each combatant's own turn
-                expired = _tick_conditions(combatant)
-                for name in expired:
-                    print(f"  {combatant.name}'s {name} expires.")
-                # Zone on_turn callbacks at end of turn
-                for zone in self.map.get_zones_containing(combatant):
-                    if zone.on_turn:
-                        zone.on_turn(combatant)
+                    # Tick timed conditions at the end of each combatant's own turn
+                    expired += _tick_conditions(combatant)
+                    for name in expired:
+                        print(f"  {combatant.name}'s {name} expires.")
+                    # Zone on_turn callbacks at end of turn
+                    for zone in self.map.get_zones_containing(combatant):
+                        if zone.on_turn:
+                            zone.on_turn(combatant)
 
-                # Check for end-of-combat after every turn
-                if not self._alive_players():
+                # Check for end-of-combat after every turn.
+                # Monsters win when no player can act (all dead or incapacitated).
+                conscious_players = [p for p in self._alive_players() if not _is_incapacitated(p)]
+                if not conscious_players:
                     self._print_status()
-                    print("\nAll players have fallen. The monsters win.")
+                    all_dead = not self._alive_players()
+                    print("\nAll players have died. The monsters win." if all_dead
+                          else "\nAll players are down. The monsters win.")
                     winner = "monsters"
                     break
 
