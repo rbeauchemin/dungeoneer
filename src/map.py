@@ -532,6 +532,32 @@ class Map:
     def in_spell_range(self, caster, target, range_ft: int) -> bool:
         return self.distance_ft(caster, target) <= range_ft
 
+    def has_line_of_sight(self, entity1, entity2) -> bool:
+        """True if no sight-blocking object lies between *entity1* and *entity2*.
+
+        Samples cells along the straight line between the two positions by
+        linear interpolation and rounding. The source and destination cells are
+        not checked, so a creature standing in/beside a blocking object can
+        still draw LoS from its own cell.
+        """
+        x1, y1, z1 = self._get_xyz(entity1)
+        x2, y2, z2 = self._get_xyz(entity2)
+
+        steps = max(abs(x2 - x1), abs(y2 - y1), abs(z2 - z1))
+        if steps == 0:
+            return True  # same cell
+
+        for i in range(1, steps):
+            t = i / steps
+            ix = round(x1 + t * (x2 - x1))
+            iy = round(y1 + t * (y2 - y1))
+            iz = round(z1 + t * (z2 - z1))
+            for obj in self._objects.get((ix, iy, iz), []):
+                if obj.blocking_sight:
+                    return False
+
+        return True
+
     # ── Pathfinding ───────────────────────────────────────────────────────────
 
     @staticmethod

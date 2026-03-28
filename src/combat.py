@@ -398,6 +398,42 @@ class Combat:
         _, nx, ny, nz = candidates[0]
         return (nx, ny, nz)
 
+    def _find_los_cell(self, mover, target, max_range_ft: int) -> tuple | None:
+        """Return the nearest passable cell from which *mover* has line of sight
+        to *target* within *max_range_ft*, or None if none is reachable.
+
+        Searches all cells within max_range_ft of the target, sorted by
+        current distance from the mover so the closest viable spot is tried first.
+        """
+        mx, my, mz = mover.position
+        tx, ty, tz = target.position
+        range_sq = max_range_ft // self.map.cell_size
+        candidates = []
+        for dx in range(-range_sq, range_sq + 1):
+            for dy in range(-range_sq, range_sq + 1):
+                cx, cy, cz = tx + dx, ty + dy, tz
+                if not self.map._in_bounds(cx, cy):
+                    continue
+                if not self.map.is_passable(cx, cy, cz):
+                    continue
+                if (cx, cy, cz) == (mx, my, mz):
+                    continue  # already here
+                occupants = self.map.get_creatures_at(cx, cy, cz)
+                if any(c is not mover for c in occupants):
+                    continue
+                dist_to_target = self.map.distance_ft((cx, cy, cz), target)
+                if dist_to_target > max_range_ft:
+                    continue
+                if not self.map.has_line_of_sight((cx, cy, cz), target):
+                    continue
+                dist_from_mover = max(abs(cx - mx), abs(cy - my))
+                candidates.append((dist_from_mover, cx, cy, cz))
+        if not candidates:
+            return None
+        candidates.sort()
+        _, nx, ny, nz = candidates[0]
+        return (nx, ny, nz)
+
     def _monster_melee_ai(self, monster, target, actions, dist):
         # Move toward target if not adjacent
         if dist > self.MELEE_REACH:
@@ -443,8 +479,23 @@ class Combat:
                               f"({result['movement_used']} ft, now {dist} ft from {target.name}).")
                     break
 
-        # Shoot if in range
-        if dist <= max_range and monster.actions_left > 0 + monster.attack_actions_left > 0:
+        has_los = self.map.has_line_of_sight(monster, target)
+
+        # If in range but no LoS, try to reposition to a cell with LoS
+        if dist <= max_range and not has_los and monster.actions_left > 0:
+            los_cell = self._find_los_cell(monster, target, max_range)
+            if los_cell is not None:
+                gx, gy, gz = los_cell
+                result = monster.move(self.map, gx, gy, gz,
+                                      blocked_creatures=self._alive_players())
+                if result["movement_used"]:
+                    dist = self.map.distance_ft(monster, target)
+                    has_los = self.map.has_line_of_sight(monster, target)
+                    print(f"    {monster.name} repositions for line of sight "
+                          f"({result['movement_used']} ft, now {dist} ft from {target.name}).")
+
+        # Shoot if in range and have LoS
+        if dist <= max_range and has_los and monster.actions_left > 0 + monster.attack_actions_left > 0:
             if monster.actions_left > 0:
                 monster.actions_left -= 1
                 monster.attack_actions_left += getattr(monster, "extra_attacks", 0)
@@ -452,18 +503,19 @@ class Combat:
                 monster.attack_actions_left -= 1
             self._monster_attack(monster, target, best["name"] if best else None)
         elif monster.actions_left > 0:
-            # Too far — close the gap
-            cell = self._approach_cell(monster, target)
+            # Too far or no LoS — close the gap toward a cell with LoS
+            cell = self._find_los_cell(monster, target, max_range) or self._approach_cell(monster, target)
             if cell is not None:
                 gx, gy, gz = cell
                 result = monster.move(self.map, gx, gy, gz,
                                       blocked_creatures=self._alive_players())
                 dist = self.map.distance_ft(monster, target)
+                has_los = self.map.has_line_of_sight(monster, target)
                 if result["movement_used"]:
                     print(f"    {monster.name} advances ({result['movement_used']} ft, "
                           f"now {dist} ft from {target.name}).")
             # Melee fallback if now adjacent
-            if dist <= self.MELEE_REACH and melee and monster.actions_left > 0:
+            if dist <= self.MELEE_REACH and has_los and melee and monster.actions_left > 0:
                 monster.actions_left -= 1
                 action = _best_action(melee)
                 self._monster_attack(monster, target, action["name"] if action else None)
@@ -588,6 +640,10 @@ class Combat:
                       f"({self.MELEE_REACH} ft). Move closer or equip a ranged weapon.")
                 return player
 
+        if not self.map.has_line_of_sight(player, target):
+            print(f"  No line of sight to {target.name} — move to a position with a clear line of sight.")
+            return player
+
         if player.actions_left + player.attack_actions_left > 0:
             if player.actions_left > 0:
                 player.actions_left -= 1
@@ -656,6 +712,9 @@ class Combat:
                 if dist > spell_range:
                     print(f"  {t.name} is {dist} ft away — out of range for {spell.name} ({spell_range} ft).")
                     return player
+                if not self.map.has_line_of_sight(player, t):
+                    print(f"  No line of sight to {t.name} — cannot cast {spell.name}.")
+                    return player
 
         print(f"  {player.name} casts {spell.name}!")
         player.cast_spell(spell.name, targets=targets)
@@ -719,6 +778,9 @@ class Combat:
                     continue
                 if dist > ability_range:
                     print(f"  {t.name} is {dist} ft away — out of range for {ability.name} ({ability_range} ft).")
+                    return player
+                if not self.map.has_line_of_sight(player, t):
+                    print(f"  No line of sight to {t.name} — cannot use {ability.name}.")
                     return player
 
         print(f"  {player.name} uses {ability.name}!")
