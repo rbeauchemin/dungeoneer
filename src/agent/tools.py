@@ -111,6 +111,14 @@ def list_abilities() -> str:
     return _s().send("abilities")
 
 
+@tool
+def reply(answer: str) -> str:
+    """Send a direct answer to a game prompt.
+    Use when a tool result ends with a question like '[Y/n]' or '[number or Enter to skip]'.
+    Examples: reply('y') for yes, reply('n') for no, reply('1') to choose option 1, reply('') to skip."""
+    return _s().send(answer)
+
+
 ALL_TOOLS = [
     get_game_state,
     move_to,
@@ -122,4 +130,5 @@ ALL_TOOLS = [
     end_turn,
     list_spells,
     list_abilities,
+    reply,
 ]

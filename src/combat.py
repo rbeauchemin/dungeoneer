@@ -69,6 +69,7 @@ def _reset_turn(creature):
     if hasattr(creature, "bonus_actions_left"):
         creature.bonus_actions_left = 1
     creature.bonus_speed = 0
+    creature.reaction_available = True
     # Per-turn activity flags used for Rage end-condition and similar tracking
     creature._attacked_this_turn = False
     creature._took_damage_this_turn = False
@@ -400,8 +401,10 @@ class Combat:
 
         prev_hp = target.current_hp
         monster.attack(target, action_name=action_name, lethal=True, extra_disadvantage=extra_disadvantage)
-        if target.current_hp < prev_hp:
+        damage_dealt = prev_hp - target.current_hp
+        if damage_dealt > 0:
             target._took_damage_this_turn = True
+            self._offer_hit_reactions(target, monster, damage_dealt)
 
         # Relentless Rage: intercept a killing blow while raging
         if target.current_hp <= 0:
@@ -428,6 +431,179 @@ class Combat:
             target.death_saves["Failed"] = 0
             target.death_saves["Succeeded"] = 0
             print(f"  {target.name} falls unconscious and is dying!")
+
+    # ── Reaction system ───────────────────────────────────────────────────────
+
+    def _opponents_in_melee_reach(self, creature) -> set:
+        """Return set of alive opponents currently within MELEE_REACH of creature."""
+        opponents = self._alive_players() if creature in self.monsters else self._alive_monsters()
+        result = set()
+        for opp in opponents:
+            if not opp.position or not creature.position:
+                continue
+            try:
+                if self.map.distance_ft(creature, opp) <= self.MELEE_REACH:
+                    result.add(opp)
+            except ValueError:
+                pass
+        return result
+
+    def _check_opportunity_attacks(self, mover, was_in_reach: set) -> None:
+        """Trigger opportunity attacks for creatures that mover just left the reach of."""
+        if not was_in_reach or not mover.position:
+            return
+        for reactor in was_in_reach:
+            if _is_dead(reactor) or _is_incapacitated(reactor):
+                continue
+            if not getattr(reactor, "reaction_available", False):
+                continue
+            if not reactor.position:
+                continue
+            try:
+                dist = self.map.distance_ft(reactor, mover)
+            except ValueError:
+                continue
+            if dist <= self.MELEE_REACH:
+                continue  # still in reach — no OA triggered
+            print(f"\n  *** OPPORTUNITY ATTACK! {mover.name} moves away from {reactor.name}! ***")
+            if reactor in self.players:
+                ans = input(
+                    f"  {reactor.name}: Use reaction for Opportunity Attack? [Y/n] "
+                ).strip().lower()
+                if ans not in ("n", "no"):
+                    self._execute_opportunity_attack(reactor, mover)
+                else:
+                    print(f"  {reactor.name} lets {mover.name} pass.")
+            else:
+                self._execute_opportunity_attack(reactor, mover)
+
+    def _execute_opportunity_attack(self, reactor, mover) -> None:
+        """Execute an opportunity attack, consuming the reactor's reaction."""
+        reactor.reaction_available = False
+        print(f"  {reactor.name} strikes {mover.name} as an Opportunity Attack!")
+        if reactor in self.players:
+            prev_hp = mover.current_hp
+            reactor.attack(mover, lethal=True)
+            if mover.current_hp < prev_hp:
+                if _is_dead(mover):
+                    print(f"  {mover.name} is slain by the opportunity attack!")
+                else:
+                    print(f"  {mover.name} takes damage! ({mover.current_hp}/{mover.max_hp} HP)")
+        else:
+            self._monster_attack(reactor, mover)
+
+    def _get_available_reactions(self, creature) -> list:
+        """Return all reaction abilities and spells available to creature."""
+        reactions = []
+        for ability in getattr(creature, "special_abilities", []):
+            ct = getattr(ability, "casting_time", "")
+            if "Reaction" in ct and (ability.uses_left is None or ability.uses_left > 0):
+                reactions.append(ability)
+        all_spells = list(getattr(creature, "spells", []))
+        all_spells += [s for s in getattr(creature, "prepared_spells", []) if s not in all_spells]
+        for spell in all_spells:
+            ct = getattr(spell, "casting_time", "")
+            if "Reaction" in ct and (spell.uses_left is None or spell.uses_left > 0):
+                reactions.append(spell)
+        return reactions
+
+    def _offer_hit_reactions(self, victim, attacker, damage_dealt: int) -> None:
+        """After victim is hit by attacker, offer any available reaction abilities."""
+        if not getattr(victim, "reaction_available", False):
+            return
+        if _is_dead(victim) or _is_incapacitated(victim):
+            return
+        reactions = self._get_available_reactions(victim)
+        if not reactions:
+            return
+
+        if victim in self.players:
+            print(f"\n  {victim.name} has reactions available (hit for {damage_dealt} damage):")
+            for i, r in enumerate(reactions, 1):
+                uses = "∞" if r.uses_left is None else str(r.uses_left)
+                desc = (getattr(r, "description", "") or "")[:70]
+                print(f"    {i}. {r.name}  (uses: {uses})  — {desc}")
+            ans = input("  Use a reaction? [number or Enter to skip] ").strip()
+            if ans.isdigit():
+                idx = int(ans) - 1
+                if 0 <= idx < len(reactions):
+                    self._execute_hit_reaction(victim, attacker, reactions[idx], damage_dealt)
+        else:
+            monster_reactions = getattr(victim, "reactions", [])
+            if monster_reactions:
+                reaction = monster_reactions[0]
+                if isinstance(reaction, dict):
+                    reaction_name = reaction.get("name", "reaction")
+                else:
+                    reaction_name = getattr(reaction, "name", "reaction")
+                print(f"\n  {victim.name} reacts with {reaction_name}!")
+                victim.reaction_available = False
+
+    def _execute_hit_reaction(self, victim, attacker, reaction, damage_dealt: int) -> None:
+        """Execute a reaction ability triggered by being hit."""
+        victim.reaction_available = False
+        name_lower = reaction.name.lower()
+
+        if "uncanny dodge" in name_lower:
+            restored = damage_dealt // 2
+            victim.current_hp = min(victim.max_hp, victim.current_hp + restored)
+            if reaction.uses_left is not None:
+                reaction.uses_left -= 1
+            print(f"  {victim.name} uses Uncanny Dodge! Damage halved — "
+                  f"restored {restored} HP ({victim.current_hp}/{victim.max_hp} HP).")
+
+        elif "deflect" in name_lower:
+            dex_mod = (victim.ability_scores.get("Dexterity", 10) - 10) // 2
+            monk_level = next(
+                (c.level for c in getattr(victim, "classes", []) if c.name == "Monk"), 1
+            )
+            reduction = roll_dice(1, 10) + dex_mod + monk_level
+            restored = min(damage_dealt, reduction)
+            victim.current_hp = min(victim.max_hp, victim.current_hp + restored)
+            if reaction.uses_left is not None:
+                reaction.uses_left -= 1
+            print(f"  {victim.name} uses Deflect Attacks! Reduced damage by {restored} "
+                  f"({victim.current_hp}/{victim.max_hp} HP).")
+
+        elif "shield" in name_lower and "of faith" not in name_lower and "master" not in name_lower:
+            if reaction.uses_left is not None:
+                reaction.uses_left -= 1
+            print(f"  {victim.name} casts Shield! +5 AC until the start of their next turn.")
+            try:
+                victim.cast_spell(reaction.name, targets=[victim])
+            except Exception:
+                pass
+
+        elif "hellish rebuke" in name_lower:
+            if reaction.uses_left is not None:
+                reaction.uses_left -= 1
+            print(f"  {victim.name} uses Hellish Rebuke against {attacker.name}!")
+            try:
+                victim.cast_spell(reaction.name, targets=[attacker])
+            except Exception:
+                pass
+
+        elif "absorb elements" in name_lower:
+            restored = damage_dealt // 2
+            victim.current_hp = min(victim.max_hp, victim.current_hp + restored)
+            if reaction.uses_left is not None:
+                reaction.uses_left -= 1
+            print(f"  {victim.name} uses Absorb Elements! Damage reduced "
+                  f"({victim.current_hp}/{victim.max_hp} HP).")
+
+        else:
+            is_ability = reaction in getattr(victim, "special_abilities", [])
+            try:
+                if is_ability:
+                    victim.use_special_ability(reaction.name, targets=[victim])
+                else:
+                    victim.cast_spell(reaction.name, targets=[victim])
+                if reaction.uses_left is not None:
+                    reaction.uses_left -= 1
+            except Exception:
+                if reaction.uses_left is not None:
+                    reaction.uses_left -= 1
+            print(f"  {victim.name} uses {reaction.name} as a reaction!")
 
     # ── Monster AI ────────────────────────────────────────────────────────────
 
@@ -521,12 +697,14 @@ class Combat:
             cell = self._approach_cell(monster, target)
             if cell is not None:
                 gx, gy, gz = cell
+                was_in_reach = self._opponents_in_melee_reach(monster)
                 result = monster.move(self.map, gx, gy, gz,
                                       blocked_creatures=self._alive_players())
                 dist = self.map.distance_ft(monster, target)
                 if result["movement_used"]:
                     print(f"    {monster.name} moves toward {target.name} "
                           f"({result['movement_used']} ft used, now {dist} ft away).")
+                    self._check_opportunity_attacks(monster, was_in_reach)
 
         # Attack if now adjacent
         if dist <= self.MELEE_REACH and monster.actions_left + monster.attack_actions_left > 0:
@@ -552,12 +730,14 @@ class Combat:
                 gx = mx + dx * steps
                 gy = my + dy * steps
                 if self.map._in_bounds(gx, gy) and self.map.is_passable(gx, gy, mz):
+                    was_in_reach = self._opponents_in_melee_reach(monster)
                     result = monster.move(self.map, gx, gy, mz,
                                          blocked_creatures=self._alive_players())
                     if result["movement_used"]:
                         dist = self.map.distance_ft(monster, target)
                         print(f"    {monster.name} backs away "
                               f"({result['movement_used']} ft, now {dist} ft from {target.name}).")
+                        self._check_opportunity_attacks(monster, was_in_reach)
                     break
 
         has_los = self.map.has_line_of_sight(monster, target)
@@ -567,6 +747,7 @@ class Combat:
             los_cell = self._find_los_cell(monster, target, max_range)
             if los_cell is not None:
                 gx, gy, gz = los_cell
+                was_in_reach = self._opponents_in_melee_reach(monster)
                 result = monster.move(self.map, gx, gy, gz,
                                       blocked_creatures=self._alive_players())
                 if result["movement_used"]:
@@ -574,6 +755,7 @@ class Combat:
                     has_los = self.map.has_line_of_sight(monster, target)
                     print(f"    {monster.name} repositions for line of sight "
                           f"({result['movement_used']} ft, now {dist} ft from {target.name}).")
+                    self._check_opportunity_attacks(monster, was_in_reach)
 
         # Shoot if in range and have LoS
         if dist <= max_range and has_los and monster.actions_left > 0 + monster.attack_actions_left > 0:
@@ -588,6 +770,7 @@ class Combat:
             cell = self._find_los_cell(monster, target, max_range) or self._approach_cell(monster, target)
             if cell is not None:
                 gx, gy, gz = cell
+                was_in_reach = self._opponents_in_melee_reach(monster)
                 result = monster.move(self.map, gx, gy, gz,
                                       blocked_creatures=self._alive_players())
                 dist = self.map.distance_ft(monster, target)
@@ -595,6 +778,7 @@ class Combat:
                 if result["movement_used"]:
                     print(f"    {monster.name} advances ({result['movement_used']} ft, "
                           f"now {dist} ft from {target.name}).")
+                    self._check_opportunity_attacks(monster, was_in_reach)
             # Melee fallback if now adjacent
             if dist <= self.MELEE_REACH and has_los and melee and monster.actions_left > 0:
                 monster.actions_left -= 1
@@ -624,6 +808,7 @@ class Combat:
                             continue
                         gx, gy, gz = tx + dx, ty + dy, tz
                         if self.map._in_bounds(gx, gy) and self.map.is_passable(gx, gy, gz):
+                            was_in_reach = self._opponents_in_melee_reach(player)
                             result = player.move(self.map, gx, gy, gz, budget=movement_remaining_ft,
                                              blocked_creatures=self._alive_monsters())
                             if result["movement_used"]:
@@ -632,6 +817,7 @@ class Combat:
                                       f"{movement_remaining_ft - result['movement_used']} ft remaining.")
                                 movement_remaining_ft -= result["movement_used"]
                                 self._print_nearby_enemies(player)
+                                self._check_opportunity_attacks(player, was_in_reach)
                             else:
                                 print(f"  No path to get adjacent to {target.name}.")
                             return player, movement_remaining_ft
@@ -644,6 +830,7 @@ class Combat:
         except ValueError:
             print("  Coordinates must be integers.")
             return player, movement_remaining_ft
+        was_in_reach = self._opponents_in_melee_reach(player)
         result = player.move(self.map, x, y, z, budget=movement_remaining_ft,
                              blocked_creatures=self._alive_monsters())
         if result["blocked"]:
@@ -655,6 +842,8 @@ class Combat:
                   f"{result['movement_used']} ft used, "
                   f"{movement_remaining_ft} ft remaining.")
             self._print_nearby_enemies(player)
+            if result["movement_used"]:
+                self._check_opportunity_attacks(player, was_in_reach)
         return player, movement_remaining_ft
 
     def _cmd_dash(self, player, movement_remaining_ft: int) -> tuple[Character, int]:
@@ -735,7 +924,11 @@ class Combat:
                 player.attack_actions_left -= 1
             # Attempting an attack (hit or miss) counts for Rage
             player._attacked_this_turn = True
+            prev_hp = target.current_hp
             player.attack(target, weapon_name=weapon_name, lethal=lethal, extra_disadvantage=extra_disadvantage)
+            damage_dealt = prev_hp - target.current_hp
+            if damage_dealt > 0 and not _is_dead(target):
+                self._offer_hit_reactions(target, player, damage_dealt)
         else:
             print("No attack actions remaining.")
         return player
@@ -937,7 +1130,6 @@ class Combat:
         player.actions_left = 1
         player.attack_actions_left = 0
         player.bonus_actions_left = 1
-        player.reaction_available = True
 
         has_spells = bool(getattr(player, "spells", []))
         has_abilities = bool(getattr(player, "special_abilities", []))
@@ -964,9 +1156,11 @@ class Combat:
                 opts.append("abilities")
             opts.append("pass")
 
+            rxn = "✓" if getattr(player, "reaction_available", False) else "✗"
             print(f"\n  [{player.name}] {_hp_bar(player)}"
                   f"  actions={player.actions_left}"
                   f"  bonus={player.bonus_actions_left}"
+                  f"  reaction={rxn}"
                   f"  movement={movement_remaining_ft}ft")
             print(f"  Commands: {' | '.join(opts)}")
 
