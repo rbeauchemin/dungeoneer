@@ -431,6 +431,12 @@ class Character:
     get_ac = get_armor_class
     ac = get_armor_class
 
+    def handle_todos(self):
+        from src.todo import handle_todo
+        while self.todo:
+            handle_todo(self)
+            
+
     def get_skill_bonus(self, skill):
         return self.get_ability_bonus(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
 
