@@ -1,0 +1,341 @@
+"""Story / Dungeon-Master tools and agent.
+
+The story agent narrates exploration, resolves skill challenges, and triggers
+combat encounters.  When it calls start_combat(), the campaign loop detects the
+active_combat flag and switches to the combat sub-loop automatically.
+"""
+
+from __future__ import annotations
+
+import json
+import random
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.tools import tool
+from langgraph.prebuilt import create_react_agent
+
+from src.agent.campaign import _campaign
+from src.common import roll_dice
+
+# ── Skill → ability mapping ────────────────────────────────────────────────────
+
+_SKILL_ABILITY: dict[str, str] = {
+    "Acrobatics": "Dexterity",
+    "Animal Handling": "Wisdom",
+    "Arcana": "Intelligence",
+    "Athletics": "Strength",
+    "Deception": "Charisma",
+    "History": "Intelligence",
+    "Insight": "Wisdom",
+    "Intimidation": "Charisma",
+    "Investigation": "Intelligence",
+    "Medicine": "Wisdom",
+    "Nature": "Intelligence",
+    "Perception": "Wisdom",
+    "Performance": "Charisma",
+    "Persuasion": "Charisma",
+    "Religion": "Intelligence",
+    "Sleight of Hand": "Dexterity",
+    "Stealth": "Dexterity",
+    "Survival": "Wisdom",
+}
+
+# Monsters available for random encounters (subset with friendly names)
+_MONSTER_REGISTRY: dict[str, str] = {
+    "Goblin": "Goblin",
+    "Skeleton": "Skeleton",
+    "Orc": "Orc",
+    "Zombie": "Zombie",
+    "Wolf": "Wolf",
+    "Giant Spider": "GiantSpider",
+    "Bandit": "Bandit",
+    "Troll": "Troll",
+    "Vampire Spawn": "VampireSpawn",
+    "Animated Armor": "AnimatedArmor",
+}
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _get_player(name: str):
+    """Case-insensitive partial name search over campaign players."""
+    for p in _campaign.players:
+        if name.lower() in p.name.lower():
+            return p
+    return None
+
+
+# ── Tools ──────────────────────────────────────────────────────────────────────
+
+@tool
+def get_campaign_state() -> str:
+    """Return the current scene and status of all player characters."""
+    from src.combat import _is_dead, _is_incapacitated
+
+    lines = [f"Scene: {_campaign.current_scene}\n"]
+    for p in _campaign.players:
+        conds = [getattr(e, "name", str(e)) for e in p.active_effects]
+        cond_str = f"  [{', '.join(conds)}]" if conds else ""
+        status = "DEAD" if _is_dead(p) else ("DOWN" if _is_incapacitated(p) else "OK")
+        lines.append(f"  {p.name}: {p.current_hp}/{p.max_hp} HP  [{status}]{cond_str}")
+
+    if _campaign.last_combat_result:
+        lines.append(f"\nLast combat: {_campaign.last_combat_result}")
+
+    return "\n".join(lines)
+
+
+@tool
+def set_scene(description: str) -> str:
+    """Update the current scene description (called when players move to a new area)."""
+    _campaign.current_scene = description
+    _campaign.story_log.append(f"[SCENE] {description}")
+    return f"Scene updated: {description}"
+
+
+@tool
+def roll_skill_check(player_name: str, skill: str, dc: int) -> str:
+    """Roll a skill check for a player character against a difficulty class (DC).
+    skill: one of the standard D&D skills (e.g. 'Perception', 'Stealth', 'Athletics').
+    dc: difficulty class (easy=10, medium=15, hard=20, very hard=25)."""
+    player = _get_player(player_name)
+    if player is None:
+        names = [p.name for p in _campaign.players]
+        return f"No player matching '{player_name}'. Available: {names}"
+
+    ability = _SKILL_ABILITY.get(skill, "Strength")
+    score = player.ability_scores.get(ability, 10)
+    modifier = (score - 10) // 2
+
+    if skill in player.proficiencies.get("Skills", []):
+        modifier += player.proficiency_bonus
+
+    roll = roll_dice(1, 20)
+    total = roll + modifier
+    mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
+    outcome = "SUCCESS" if total >= dc else "FAILURE"
+
+    result = (
+        f"{player.name} — {skill} ({ability}) check:\n"
+        f"  d20({roll}) {mod_str} = {total}  vs DC {dc}  →  {outcome}"
+    )
+    _campaign.story_log.append(result)
+    return result
+
+
+@tool
+def roll_ability_check(player_name: str, ability: str, dc: int) -> str:
+    """Roll a raw ability check (Strength, Dexterity, etc.) for a player.
+    Use this for saves or checks that don't map to a skill."""
+    player = _get_player(player_name)
+    if player is None:
+        return f"No player matching '{player_name}'."
+
+    ability = ability.capitalize()
+    score = player.ability_scores.get(ability, 10)
+    modifier = (score - 10) // 2
+
+    roll = roll_dice(1, 20)
+    total = roll + modifier
+    mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
+    outcome = "SUCCESS" if total >= dc else "FAILURE"
+
+    return (
+        f"{player.name} — {ability} check:\n"
+        f"  d20({roll}) {mod_str} = {total}  vs DC {dc}  →  {outcome}"
+    )
+
+
+@tool
+def list_available_monsters() -> str:
+    """List the monster types available for combat encounters."""
+    return "Available monsters:\n" + "\n".join(f"  - {name}" for name in _MONSTER_REGISTRY)
+
+
+@tool
+def start_combat(setting: str, monster_specs: str) -> str:
+    """Begin a combat encounter.
+
+    setting: a brief description of the combat location (used as map name).
+    monster_specs: JSON array of objects with 'type' and 'count' fields.
+      Example: '[{\"type\": \"Goblin\", \"count\": 3}]'
+      Use list_available_monsters() to see valid type names.
+    """
+    from src.map import Map
+    import src.creatures.monsters as monsters_module
+    from src.combat import Combat
+    from src.agent.session import GameSession
+
+    try:
+        specs: list[dict] = json.loads(monster_specs)
+    except json.JSONDecodeError as exc:
+        return f"Invalid monster_specs JSON: {exc}"
+
+    alive_players = [
+        p for p in _campaign.players
+        if p.current_hp > 0
+    ]
+    if not alive_players:
+        return "No living players to fight!"
+
+    # Build a map sized to the encounter
+    total_combatants = len(alive_players) + sum(s.get("count", 1) for s in specs)
+    map_height = max(10, total_combatants * 2 + 4)
+    dungeon_map = Map(22, map_height, name=setting[:30])
+
+    # Place players on the left, spread vertically
+    mid_y = map_height // 2
+    for i, player in enumerate(alive_players):
+        px = 3
+        py = mid_y - (len(alive_players) - 1) + i * 2
+        py = max(1, min(py, map_height - 2))
+        dungeon_map.place_creature(player, px, py)
+
+    # Instantiate and place monsters
+    monster_list: list = []
+    mx_base = 17
+    monster_idx = 0
+    errors: list[str] = []
+
+    for spec in specs:
+        type_name = spec.get("type", "")
+        count = spec.get("count", 1)
+        class_name = _MONSTER_REGISTRY.get(type_name)
+        if class_name is None:
+            errors.append(f"Unknown monster type '{type_name}'")
+            continue
+
+        monster_cls = getattr(monsters_module, class_name, None)
+        if monster_cls is None:
+            errors.append(f"Monster class '{class_name}' not found in monsters module")
+            continue
+
+        for j in range(count):
+            m = monster_cls()
+            if count > 1:
+                m.name = f"{type_name} {j + 1}"
+            mx = mx_base + (monster_idx % 2)
+            my = mid_y - (count - 1) + monster_idx * 2
+            my = max(1, min(my, map_height - 2))
+            dungeon_map.place_creature(m, mx, my)
+            monster_list.append(m)
+            monster_idx += 1
+
+    if not monster_list:
+        msg = "No valid monsters could be created."
+        if errors:
+            msg += " Errors: " + "; ".join(errors)
+        return msg
+
+    combat = Combat(dungeon_map, players=alive_players, monsters=monster_list)
+    session = GameSession(combat)
+    _campaign.active_combat = session
+    _campaign.combat_setting = setting
+
+    monster_summary = ", ".join(
+        f"{s.get('count', 1)}x {s.get('type', '?')}" for s in specs
+    )
+    note = (" (Errors: " + "; ".join(errors) + ")") if errors else ""
+    return (
+        f"COMBAT_INITIATED — {setting}\n"
+        f"Enemies: {monster_summary}{note}\n"
+        f"The battle is about to begin!"
+    )
+
+
+@tool
+def take_long_rest() -> str:
+    """The party takes a long rest: restores all HP and resets spell slots/abilities."""
+    from src.combat import _is_dead
+
+    results: list[str] = []
+    for p in _campaign.players:
+        if _is_dead(p):
+            continue
+        old_hp = p.current_hp
+        p.current_hp = p.max_hp
+
+        # Reset spell slots if present
+        if hasattr(p, "spell_slots"):
+            if hasattr(p, "_max_spell_slots"):
+                p.spell_slots = dict(p._max_spell_slots)
+            elif isinstance(p.spell_slots, dict):
+                p.spell_slots = {k: v for k, v in p.spell_slots.items()}
+
+        # Reset ability uses
+        for ability in getattr(p, "special_abilities", []):
+            if hasattr(ability, "max_uses") and ability.max_uses is not None:
+                ability.uses_left = ability.max_uses
+
+        results.append(f"  {p.name}: {old_hp} → {p.max_hp} HP (fully restored)")
+
+    _campaign.story_log.append("[LONG REST]")
+    return "The party takes a long rest.\n" + "\n".join(results)
+
+
+@tool
+def take_short_rest() -> str:
+    """The party takes a short rest: each player rolls their hit dice to recover HP."""
+    from src.common import roll_dice
+    from src.combat import _is_dead
+
+    results: list[str] = []
+    for p in _campaign.players:
+        if _is_dead(p) or p.current_hp <= 0:
+            continue
+        hit_die = max(
+            (c.hit_dice for c in p.classes),
+            default=8,
+        )
+        roll = roll_dice(1, hit_die)
+        con_mod = (p.ability_scores.get("Constitution", 10) - 10) // 2
+        healed = max(1, roll + con_mod)
+        old_hp = p.current_hp
+        p.current_hp = min(p.max_hp, p.current_hp + healed)
+        results.append(
+            f"  {p.name}: rolled d{hit_die}({roll})+{con_mod} = {healed} HP  "
+            f"({old_hp} → {p.current_hp})"
+        )
+
+    _campaign.story_log.append("[SHORT REST]")
+    return "The party takes a short rest.\n" + "\n".join(results)
+
+
+_STORY_TOOLS = [
+    get_campaign_state,
+    set_scene,
+    roll_skill_check,
+    roll_ability_check,
+    list_available_monsters,
+    start_combat,
+    take_long_rest,
+    take_short_rest,
+]
+
+_STORY_SYSTEM = """\
+You are the Dungeon Master for a text-based D&D 5e campaign called Dungeoneer.
+Your role is to narrate the world, drive the story, respond to player actions,
+and manage non-combat challenges.
+
+Core responsibilities:
+- Paint vivid scenes with short, punchy descriptions (2-4 sentences).
+- React to everything the player does — no action goes unacknowledged.
+- When players explore, encounter NPCs, or face obstacles, use roll_skill_check()
+  or roll_ability_check() to resolve uncertain outcomes.
+- Call set_scene() whenever the party moves to a meaningfully new location.
+- Call start_combat() the moment a hostile encounter turns violent. Describe the
+  ambush / confrontation first, THEN call the tool.
+- After combat returns, weave the outcome naturally into the story.
+- Suggest long or short rests when it makes narrative sense (injured, clearing
+  a dungeon level, etc.) and call the appropriate tool.
+- Keep secrets: don't reveal monster HP, DCs, or mechanical details unless asked.
+
+Tone: epic fantasy, vivid but concise. Use second person ("You enter the hall…").
+Never break character unless the player explicitly asks an out-of-game question.
+"""
+
+
+def create_story_agent(model: str = "claude-opus-4-6"):
+    """Return a compiled LangGraph ReAct agent for story / DM mode."""
+    llm = ChatAnthropic(model=model)
+    return create_react_agent(llm, _STORY_TOOLS, prompt=_STORY_SYSTEM)

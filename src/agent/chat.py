@@ -1,21 +1,22 @@
-"""Dungeoneer agent chat loop.
+"""Dungeoneer — main campaign entry point.
 
-Starts a game session and runs a human-in-the-loop chat interface: the user
-gives high-level instructions each turn and the LangGraph agent translates
-them into game commands.
+Phases
+------
+1. Character Creation  — the creation agent walks each player through building
+   their character conversationally (species, background, class, skill choices …).
 
-Run the default Fighter-vs-Goblins demo::
+2. Story / Exploration — the DM agent narrates the world and responds to player
+   actions.  Non-combat challenges are resolved with skill-check tools.
+
+3. Combat             — triggered automatically when the DM calls start_combat().
+   The combat agent drives player turns; the GameSession thread runs the engine.
+   On completion the story resumes with the battle result folded in.
+
+Run::
 
     python -m src.agent.chat
 
-Or import and call ``run()`` with a custom encounter::
-
-    from src.combat import Combat
-    from src.agent.chat import run
-    run(combat=my_combat)
-
-Requires ``ANTHROPIC_API_KEY`` in the environment (or in a ``.env`` file if
-``python-dotenv`` is installed).
+Requires ANTHROPIC_API_KEY (shell env or .env file).
 """
 
 from __future__ import annotations
@@ -26,118 +27,281 @@ from typing import Optional
 
 from langchain_core.messages import HumanMessage
 
-from src.map import Map
-from src.creatures.character import Character
-from src.creatures.monsters import Goblin
-from src.classes.fighter import Fighter
-from src.combat import Combat
-
+from src.agent.campaign import _campaign
+from src.agent.creation import create_creation_agent
+from src.agent.story_tools import create_story_agent
+from src.agent.graph import create_agent as create_combat_agent
 from src.agent.session import GameSession
-from src.agent.tools import set_session
-from src.agent.graph import create_agent
+from src.agent.tools import set_session, ALL_TOOLS
 
 
-# ── Default encounter ──────────────────────────────────────────────────────────
+# ── Utilities ──────────────────────────────────────────────────────────────────
 
-def _build_default_encounter() -> Combat:
-    """Fighter level 3 vs two Goblins on a 20×12 grid."""
-    hero = Character(
-        name="Aldric",
-        species="Human",
-        background="Soldier",
-        classes=[Fighter(3)],
-    )
-
-    dungeon = Map(20, 12, name="Goblin Cave")
-    goblin_a = Goblin(name="Goblin A")
-    goblin_b = Goblin(name="Goblin B")
-
-    dungeon.place_creature(hero, 3, 6)
-    dungeon.place_creature(goblin_a, 16, 4)
-    dungeon.place_creature(goblin_b, 16, 8)
-
-    return Combat(dungeon, players=[hero], monsters=[goblin_a, goblin_b])
+def _hr(char: str = "=", width: int = 60) -> str:
+    return char * width
 
 
-# ── Chat loop ──────────────────────────────────────────────────────────────────
+def _prompt(label: str = "You") -> str:
+    """Read a line from stdin; raise SystemExit on quit commands."""
+    try:
+        line = input(f"\n{label} > ").strip()
+    except (EOFError, KeyboardInterrupt):
+        raise SystemExit(0)
+    if line.lower() in ("quit", "exit", "q"):
+        raise SystemExit(0)
+    return line
 
-def run(
-    combat: Optional[Combat] = None,
-    model: str = "claude-opus-4-6",
-) -> None:
-    """Start a Dungeoneer game session driven by a LangGraph agent.
 
-    Parameters
-    ----------
-    combat:
-        A pre-built ``Combat`` instance.  When ``None`` a default
-        Fighter-vs-two-Goblins encounter is created automatically.
-    model:
-        Anthropic model ID passed to ``create_agent()``.
-    """
-    if combat is None:
-        combat = _build_default_encounter()
+# ── Phase 1: Character Creation ────────────────────────────────────────────────
 
-    session = GameSession(combat)
+def run_creation_phase(model: str) -> None:
+    """Interactively create one character per player and add them to _campaign."""
+    print(_hr())
+    print("  CHARACTER CREATION")
+    print(_hr())
+
+    try:
+        raw = input("\nHow many players? [1] ").strip()
+        n_players = int(raw) if raw.isdigit() else 1
+    except (EOFError, KeyboardInterrupt):
+        raise SystemExit(0)
+
+    n_players = max(1, min(n_players, 4))
+
+    agent = create_creation_agent(model=model)
+
+    for player_num in range(1, n_players + 1):
+        print(f"\n{_hr('-')}")
+        if n_players > 1:
+            print(f"  Player {player_num} of {n_players}")
+        print(_hr("-"))
+
+        _campaign.pending_character = None
+        messages: list = []
+
+        player_tag = f" (player {player_num} of {n_players})" if n_players > 1 else ""
+        opener = (
+            "Welcome, adventurer! I'm here to help you create your character"
+            + player_tag
+            + ". What kind of hero do you want to be?"
+        )
+        messages.append(HumanMessage(content=opener))
+        result = agent.invoke({"messages": messages})
+        messages = result["messages"]
+        print(f"\nAgent: {result['messages'][-1].content}")
+
+        # Conversation loop until character is complete
+        while True:
+            # Check if creation is done
+            char = _campaign.pending_character
+            if char is not None and not char.todo:
+                _campaign.players.append(char)
+                _campaign.pending_character = None
+                print(f"\n  ✓ {char.name} is ready to adventure!")
+                break
+
+            user_input = _prompt("You")
+            if not user_input:
+                user_input = "Continue."
+
+            messages.append(HumanMessage(content=user_input))
+            result = agent.invoke({"messages": messages})
+            messages = result["messages"]
+            print(f"\nAgent: {result['messages'][-1].content}")
+
+
+# ── Phase 3: Combat sub-loop ───────────────────────────────────────────────────
+
+def run_combat_loop(session: GameSession, model: str) -> str:
+    """Drive a full combat encounter to completion.  Returns a result summary."""
     set_session(session)
-    agent = create_agent(model=model)
+    agent = create_combat_agent(model=model)
 
-    print("\n" + "=" * 60)
-    print("  DUNGEONEER — Agent Mode")
-    print("  Type instructions for your character, or 'quit' to exit.")
-    print("  Leave blank to let the agent act on its own judgment.")
-    print("=" * 60)
+    print(f"\n{_hr()}")
+    print(f"  ⚔  COMBAT — {_campaign.combat_setting}")
+    print(_hr())
 
-    # Boot the game and display opening output
     initial_output = session.start()
     if initial_output.strip():
         print(initial_output)
 
-    conversation: list = []
+    conv: list = []
 
     while not session.is_game_over:
         state = session.get_state_description()
+        print(f"\n{_hr('-')}")
 
-        print("\n" + "-" * 40)
-        try:
-            user_input = input("You > ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nExiting.")
-            break
-
-        if user_input.lower() in ("quit", "exit", "q"):
-            break
-
-        # Fall back to autonomous play if the user gives no instruction
+        user_input = _prompt("Combat")
         if not user_input:
             user_input = "Take your turn using your best judgment."
 
-        full_prompt = (
-            f"Current game state:\n{state}\n\n"
-            f"Player instruction: {user_input}"
-        )
-        conversation.append(HumanMessage(content=full_prompt))
+        conv.append(HumanMessage(
+            content=f"Current state:\n{state}\n\nInstruction: {user_input}"
+        ))
+        result = agent.invoke({"messages": conv})
+        conv = result["messages"]
 
-        # Run the agent — it calls tools until the turn is over
-        result = agent.invoke({"messages": conversation})
-        conversation = result["messages"]
+        print(f"\nAgent: {result['messages'][-1].content}")
 
-        ai_response = result["messages"][-1].content
-        print(f"\nAgent: {ai_response}")
-
-        # Flush any remaining game output captured after the last tool call
         leftover = session._take_output()
         if leftover.strip():
             print(leftover)
 
-    if session.is_game_over:
-        print(f"\n{'=' * 60}")
-        print(f"  GAME OVER — {(session.winner or 'unknown').upper()} WIN")
-        print("=" * 60)
+    winner = session.winner or "unknown"
+    summary = (
+        f"The players won the battle against {_campaign.combat_setting}!"
+        if winner == "players"
+        else f"The party was defeated at {_campaign.combat_setting}."
+    )
+    return summary
+
+
+# ── Phase 2: Story / exploration loop ─────────────────────────────────────────
+
+def run_story_phase(model: str) -> None:
+    """Run the main campaign story loop, weaving in combat as the DM decides."""
+    print(f"\n{_hr()}")
+    print("  THE ADVENTURE BEGINS")
+    print(_hr())
+    print("  (Type your actions, questions, or 'quit' to exit.)")
+    print(_hr())
+
+    agent = create_story_agent(model=model)
+    messages: list = []
+
+    # Kick off the story
+    player_names = " and ".join(p.name for p in _campaign.players)
+    kick_off = (
+        f"Begin the campaign for {player_names}. "
+        f"Set an opening scene and invite the player(s) to act."
+    )
+    messages.append(HumanMessage(content=kick_off))
+    result = agent.invoke({"messages": messages})
+    messages = result["messages"]
+    print(f"\nDM: {result['messages'][-1].content}")
+
+    # Check if combat was already triggered by the opening scene
+    if _campaign.active_combat is not None:
+        _run_combat_handoff(model, messages, agent)
+
+    while True:
+        user_input = _prompt("You")
+        if not user_input:
+            continue
+
+        messages.append(HumanMessage(content=user_input))
+
+        result = agent.invoke({"messages": messages})
+        messages = result["messages"]
+        dm_reply = result["messages"][-1].content
+        print(f"\nDM: {dm_reply}")
+
+        # Did the DM trigger combat?
+        if _campaign.active_combat is not None:
+            messages = _run_combat_handoff(model, messages, agent)
+
+
+def _run_combat_handoff(
+    model: str,
+    story_messages: list,
+    story_agent,
+) -> list:
+    """Run the combat sub-loop, then feed the result back into the story."""
+    session = _campaign.active_combat
+    _campaign.active_combat = None   # clear before running so we don't re-enter
+
+    combat_result = run_combat_loop(session, model)
+    _campaign.last_combat_result = combat_result
+
+    # Remove dead characters from the active roster
+    from src.combat import _is_dead
+    _campaign.players = [p for p in _campaign.players if not _is_dead(p)]
+
+    print(f"\n{_hr()}")
+    print("  RETURNING TO THE STORY …")
+    print(_hr())
+
+    # Tell the story agent what happened so it can narrate the aftermath
+    followup = HumanMessage(
+        content=f"The combat has ended. Result: {combat_result}. Continue the story."
+    )
+    story_messages.append(followup)
+    result = story_agent.invoke({"messages": story_messages})
+    story_messages = result["messages"]
+    print(f"\nDM: {result['messages'][-1].content}")
+
+    # Check for nested combat (unlikely but safe)
+    if _campaign.active_combat is not None:
+        story_messages = _run_combat_handoff(model, story_messages, story_agent)
+
+    return story_messages
+
+
+# ── Entry point ────────────────────────────────────────────────────────────────
+
+def run(
+    combat=None,
+    model: str = "claude-opus-4-6",
+) -> None:
+    """Start a Dungeoneer campaign.
+
+    Parameters
+    ----------
+    combat:
+        Pass a pre-built ``Combat`` instance to skip character creation and
+        jump straight into a single combat encounter (useful for testing).
+    model:
+        Anthropic model ID used for all agents.
+    """
+    print(_hr())
+    print("  DUNGEONEER")
+    print("  A D&D 5e Text Adventure")
+    print(_hr())
+
+    if combat is not None:
+        # ── Legacy / test mode: single combat, no story wrapping ──────────────
+        from src.agent.session import GameSession
+        session = GameSession(combat)
+        _campaign.combat_setting = "Test Encounter"
+        set_session(session)
+        combat_agent = create_combat_agent(model=model)
+
+        initial = session.start()
+        if initial.strip():
+            print(initial)
+
+        conv: list = []
+        while not session.is_game_over:
+            state = session.get_state_description()
+            user_input = _prompt("You")
+            if not user_input:
+                user_input = "Take your turn."
+            conv.append(HumanMessage(
+                content=f"Current state:\n{state}\n\nInstruction: {user_input}"
+            ))
+            result = combat_agent.invoke({"messages": conv})
+            conv = result["messages"]
+            print(f"\nAgent: {result['messages'][-1].content}")
+            leftover = session._take_output()
+            if leftover.strip():
+                print(leftover)
+
+        print(f"\n{_hr()}")
+        print(f"  GAME OVER — {(session.winner or '?').upper()} WIN")
+        print(_hr())
+        return
+
+    # ── Full campaign mode ─────────────────────────────────────────────────────
+    run_creation_phase(model=model)
+
+    if not _campaign.players:
+        print("No characters created. Exiting.")
+        return
+
+    run_story_phase(model=model)
 
 
 if __name__ == "__main__":
-    # Try loading a .env file if python-dotenv is available
     try:
         from dotenv import load_dotenv
         load_dotenv()
@@ -147,7 +311,7 @@ if __name__ == "__main__":
     if not os.getenv("ANTHROPIC_API_KEY"):
         print(
             "Error: ANTHROPIC_API_KEY is not set.\n"
-            "Export it in your shell or create a .env file.",
+            "Export it in your shell or add it to a .env file.",
             file=sys.stderr,
         )
         sys.exit(1)
