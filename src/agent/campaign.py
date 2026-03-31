@@ -24,6 +24,9 @@ class CampaignState:
     combat_setting: str = ""
     last_combat_result: str = ""
 
+    # Campaign setting brief (captured before character creation)
+    setting_brief: str = ""
+
     # Character-creation scratch pad (one character at a time)
     pending_character: object = None
 

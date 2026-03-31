@@ -52,6 +52,35 @@ def _prompt(label: str = "You") -> str:
     return line
 
 
+# ── Phase 0: Campaign setting ──────────────────────────────────────────────────
+
+def run_setting_phase() -> None:
+    """Ask the player(s) what kind of campaign they want and store a setting brief."""
+    print(_hr())
+    print("  CAMPAIGN SETUP")
+    print(_hr())
+    print("""
+  Before we begin, tell me about the world you want to adventure in.
+  You can describe as much or as little as you like — a single word
+  or a full paragraph. Consider:
+
+    • Setting & genre  (classic fantasy, dark gothic, nautical, sci-fantasy…)
+    • Tone             (heroic epic, gritty survival, political intrigue, comedy…)
+    • Specific themes  (underdark, dragons, heists, ancient ruins, war, horror…)
+    • Any hard no's    (content you want to avoid or things you don't want in the world)
+""")
+    try:
+        raw = input("  What kind of campaign would you like? > ").strip()
+    except (EOFError, KeyboardInterrupt):
+        raise SystemExit(0)
+
+    if not raw:
+        raw = "A classic fantasy adventure with exciting combat and exploration."
+
+    _campaign.setting_brief = raw
+    print(f"\n  Got it — I'll craft a world around: \"{raw}\"")
+
+
 # ── Phase 1: Character Creation ────────────────────────────────────────────────
 
 def run_creation_phase(model: str) -> None:
@@ -171,9 +200,14 @@ def run_story_phase(model: str) -> None:
 
     # Kick off the story
     player_names = " and ".join(p.name for p in _campaign.players)
+    setting_context = (
+        f" The player requested this setting: \"{_campaign.setting_brief}\"."
+        if _campaign.setting_brief else ""
+    )
     kick_off = (
-        f"Begin the campaign for {player_names}. "
-        f"Set an opening scene and invite the player(s) to act."
+        f"Begin the campaign for {player_names}.{setting_context} "
+        f"Set an opening scene that fits the requested setting and tone, "
+        f"then invite the player(s) to act."
     )
     messages.append(HumanMessage(content=kick_off))
     result = agent.invoke({"messages": messages})
@@ -241,7 +275,7 @@ def _run_combat_handoff(
 
 def run(
     combat=None,
-    model: str = "claude-opus-4-6",
+    model: str = "claude-haiku-4-5",
 ) -> None:
     """Start a Dungeoneer campaign.
 
@@ -292,6 +326,7 @@ def run(
         return
 
     # ── Full campaign mode ─────────────────────────────────────────────────────
+    run_setting_phase()
     run_creation_phase(model=model)
 
     if not _campaign.players:

@@ -260,7 +260,7 @@ Tone: enthusiastic, encouraging, brief. Never use game jargon without explaining
 """
 
 
-def create_creation_agent(model: str = "claude-opus-4-6"):
+def create_creation_agent(model: str = "claude-haiku-4-5"):
     """Return a LangGraph agent for interactive character creation."""
     llm = ChatAnthropic(model=model)
     return create_react_agent(llm, _CREATION_TOOLS, prompt=_CREATION_SYSTEM)

@@ -7,7 +7,7 @@ Usage::
 
     from src.agent.graph import create_agent
 
-    agent = create_agent()                          # defaults to claude-opus-4-6
+    agent = create_agent()                          # defaults to claude-haiku-4-5
     agent = create_agent(model="claude-sonnet-4-6") # cheaper / faster option
     result = agent.invoke({"messages": [...]})
 """
@@ -51,13 +51,13 @@ Do not repeat the raw game output verbatim — summarize it naturally.
 """)
 
 
-def create_agent(model: str = "claude-opus-4-6"):
+def create_agent(model: str = "claude-haiku-4-5"):
     """Return a compiled LangGraph ReAct agent bound to all Dungeoneer tools.
 
     Parameters
     ----------
     model:
-        Anthropic model ID.  Defaults to ``claude-opus-4-6``.
+        Anthropic model ID.  Defaults to ``claude-haiku-4-5``.
     """
     llm = ChatAnthropic(model=model)
     return create_react_agent(llm, ALL_TOOLS, prompt=_SYSTEM_PROMPT)
