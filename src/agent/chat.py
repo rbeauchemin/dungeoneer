@@ -275,7 +275,7 @@ def _run_combat_handoff(
 
 def run(
     combat=None,
-    model: str = "claude-haiku-4-5",
+    model: str = None,
 ) -> None:
     """Start a Dungeoneer campaign.
 
@@ -285,8 +285,12 @@ def run(
         Pass a pre-built ``Combat`` instance to skip character creation and
         jump straight into a single combat encounter (useful for testing).
     model:
-        Anthropic model ID used for all agents.
+        Model ID used for all agents. Defaults to DUNGEONEER_MODEL env var,
+        or ``claude-haiku-4-5`` if unset. Use an Ollama model name (e.g.
+        ``llama3``) to run locally without an Anthropic key.
     """
+    if model is None:
+        model = os.getenv("DUNGEONEER_MODEL", "claude-haiku-4-5")
     print(_hr())
     print("  DUNGEONEER")
     print("  A D&D 5e Text Adventure")

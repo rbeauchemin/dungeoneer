@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 from src.common import roll_dice
 from src.spells import Spell, Light, _d, _deal_damage, _spell_save, _aoe_targets, _targets_list, _cantrip_dice
 
@@ -156,7 +156,7 @@ class Aasimar(Species):
 
 
 class Dragonborn(Species):
-    def __init__(self, dragonborn_ancestry: Literal["Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green", "Red", "Silver", "White"]):
+    def __init__(self, dragonborn_ancestry: Optional[Literal["Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green", "Red", "Silver", "White"]] = None):
         super().__init__()
         self.todo = ["Select your draconic ancestry, which determines the damage type of your breath weapon and your resistance to that damage type."]
         self.description = "Dragonborn are proud, honorable warriors with draconic ancestry. They possess a strong sense of duty and a desire to prove themselves through acts of valor. Dragonborn are known for their strength, resilience, and their ability to breathe elemental energy. They often have a strong connection to their clan and value loyalty and camaraderie. Dragonborn typically have scales that reflect their draconic heritage, with colors ranging from metallic hues to vibrant shades associated with different types of dragons."

@@ -14,7 +14,6 @@ Usage::
 
 from __future__ import annotations
 
-from langchain_anthropic import ChatAnthropic
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import SystemMessage
 
@@ -57,7 +56,13 @@ def create_agent(model: str = "claude-haiku-4-5"):
     Parameters
     ----------
     model:
-        Anthropic model ID.  Defaults to ``claude-haiku-4-5``.
+        Model ID. Defaults to ``claude-haiku-4-5``. Pass an Ollama model name
+        to run locally.
     """
-    llm = ChatAnthropic(model=model)
+    if model.startswith("claude"):
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=model)
+    else:
+        from langchain_ollama import ChatOllama
+        llm = ChatOllama(model=model)
     return create_react_agent(llm, ALL_TOOLS, prompt=_SYSTEM_PROMPT)

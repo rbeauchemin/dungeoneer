@@ -12,7 +12,6 @@ from __future__ import annotations
 import importlib
 from typing import Optional
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
@@ -262,5 +261,10 @@ Tone: enthusiastic, encouraging, brief. Never use game jargon without explaining
 
 def create_creation_agent(model: str = "claude-haiku-4-5"):
     """Return a LangGraph agent for interactive character creation."""
-    llm = ChatAnthropic(model=model)
+    if model.startswith("claude"):
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=model)
+    else:
+        from langchain_ollama import ChatOllama
+        llm = ChatOllama(model=model)
     return create_react_agent(llm, _CREATION_TOOLS, prompt=_CREATION_SYSTEM)

@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import random
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
@@ -655,5 +654,10 @@ Never break character unless the player explicitly asks an out-of-game question.
 
 def create_story_agent(model: str = "claude-haiku-4-5"):
     """Return a compiled LangGraph ReAct agent for story / DM mode."""
-    llm = ChatAnthropic(model=model)
+    if model.startswith("claude"):
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=model)
+    else:
+        from langchain_ollama import ChatOllama
+        llm = ChatOllama(model=model)
     return create_react_agent(llm, _STORY_TOOLS, prompt=_STORY_SYSTEM)
