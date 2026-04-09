@@ -156,9 +156,21 @@ class Aasimar(Species):
 
 
 class Dragonborn(Species):
-    def __init__(self, dragonborn_ancestry: Optional[Literal["Black", "Blue", "Brass", "Bronze", "Copper", "Gold", "Green", "Red", "Silver", "White"]] = None):
+    ANCESTRIES = {
+        "Black": "Acid",
+        "Blue": "Lightning",
+        "Brass": "Fire",
+        "Bronze": "Lightning",
+        "Copper": "Acid",
+        "Gold": "Fire",
+        "Green": "Poison",
+        "Red": "Fire",
+        "Silver": "Cold",
+        "White": "Cold",
+    }
+
+    def __init__(self, dragonborn_ancestry: Optional[str] = None, **kwargs):
         super().__init__()
-        self.todo = ["Select your draconic ancestry, which determines the damage type of your breath weapon and your resistance to that damage type."]
         self.description = "Dragonborn are proud, honorable warriors with draconic ancestry. They possess a strong sense of duty and a desire to prove themselves through acts of valor. Dragonborn are known for their strength, resilience, and their ability to breathe elemental energy. They often have a strong connection to their clan and value loyalty and camaraderie. Dragonborn typically have scales that reflect their draconic heritage, with colors ranging from metallic hues to vibrant shades associated with different types of dragons."
         self.creature_type = "Humanoid"
         self.size = "Medium"
@@ -169,63 +181,10 @@ class Dragonborn(Species):
         self.vision = "Darkvision of 60ft"
         self.full_rest_hours = 8
         self.proficiency_bonus = 2
-        self.breaths_left = self.proficiency_bonus + 0
-        ancestries = {
-            "Black": "Acid",
-            "Blue": "Lightning",
-            "Brass": "Fire",
-            "Bronze": "Lightning",
-            "Copper": "Acid",
-            "Gold": "Fire",
-            "Green": "Poison",
-            "Red": "Fire",
-            "Silver": "Cold",
-            "White": "Cold"
-        }
-        if dragonborn_ancestry in ancestries.keys():
-            self.dragonborn_ancestry = dragonborn_ancestry
-            self.breath_weapon_damage_type = ancestries[dragonborn_ancestry]
-            self.resistances = [self.breath_weapon_damage_type]
-        else:
-            raise Exception(f"Invalid ancestry provided. Please select a valid draconic ancestry from {list(ancestries.keys())}.")
-        dmg_type = self.breath_weapon_damage_type
-
-        def _breath_cast(char, targets, _dmg_type=dmg_type, radius=15):
-            dc = 8 + char.get_ability_bonus('Constitution') + char.proficiency_bonus
-            n = _cantrip_dice(char)
-            ts = _aoe_targets(char, char, radius, include_caster=False) or _targets_list(targets)
-            for t in ts:
-                dmg = _d(n, 10)
-                saved, _ = _spell_save(char, t, 'Dexterity', dc=dc)
-                _deal_damage(t, dmg // 2 if saved else dmg, _dmg_type)
-
+        self.breaths_left = self.proficiency_bonus
+        self.dragonborn_ancestry = None
+        self.breath_weapon_damage_type = None
         self.special_abilities = [
-            Spell(
-                name="Breath Weapon: Cone",
-                casting_time="Attack Action",
-                range_="15ft Cone",
-                components=[],
-                duration="Instantaneous",
-                description="You can use your action to exhale destructive energy. Your draconic ancestry determines the size, shape, and damage type of the exhalation. When you use your breath weapon, each creature in the area of the exhalation must make a Dexterity saving throw (DC 8 + your Constitution modifier + your proficiency bonus)",
-                ability="Constitution",
-                save="Dexterity",
-                cooldown="Long Rest",
-                uses_left=self.breaths_left,
-                cast=lambda char, targets: _breath_cast(char, targets, radius=15),
-            ),
-            Spell(
-                name="Breath Weapon: Line",
-                casting_time="Attack Action",
-                range_="30ft Line",
-                components=[],
-                duration="Instantaneous",
-                description="You can use your action to exhale destructive energy. Your draconic ancestry determines the size, shape, and damage type of the exhalation. When you use your breath weapon, each creature in the area of the exhalation must make a Dexterity saving throw (DC 8 + your Constitution modifier + your proficiency bonus)",
-                ability="Constitution",
-                save="Dexterity",
-                cooldown="Long Rest",
-                uses_left=self.breaths_left,
-                cast=lambda char, targets: _breath_cast(char, targets, radius=30),
-            ),
             Spell(
                 name="Draconic Flight",
                 casting_time="Bonus Action",
@@ -238,6 +197,65 @@ class Dragonborn(Species):
                 cast=lambda char, targets: self.cast_draconic_flight(char, [char])
             )
         ]
+        if dragonborn_ancestry in self.ANCESTRIES:
+            self._apply_ancestry(None, dragonborn_ancestry)
+        else:
+            self.todo = [{
+                "Text": "Choose your draconic ancestry. This determines your breath weapon's damage type and your damage resistance.",
+                "Options": list(self.ANCESTRIES.keys()),
+                "Choices": 1,
+                "AllowSame": False,
+                "Function": lambda char, choices: self._apply_ancestry(char, choices[0]),
+            }]
+
+    def _apply_ancestry(self, char, ancestry):
+        """Apply draconic ancestry, updating species and (if available) character state."""
+        self.dragonborn_ancestry = ancestry
+        self.breath_weapon_damage_type = self.ANCESTRIES[ancestry]
+        self.resistances = [self.breath_weapon_damage_type]
+        if char is not None and self.breath_weapon_damage_type not in char._base_resistances:
+            char._base_resistances.append(self.breath_weapon_damage_type)
+
+        dmg_type = self.breath_weapon_damage_type
+
+        def _breath_cast(char, targets, _dmg_type=dmg_type, radius=15):
+            dc = 8 + char.get_ability_bonus('Constitution') + char.proficiency_bonus
+            n = _cantrip_dice(char)
+            ts = _aoe_targets(char, char, radius, include_caster=False) or _targets_list(targets)
+            for t in ts:
+                dmg = _d(n, 10)
+                saved, _ = _spell_save(char, t, 'Dexterity', dc=dc)
+                _deal_damage(t, dmg // 2 if saved else dmg, _dmg_type)
+
+        # Insert breath weapons before Draconic Flight (index 0)
+        self.special_abilities += [
+            Spell(
+                name="Breath Weapon: Cone",
+                casting_time="Attack Action",
+                range_="15ft Cone",
+                components=[],
+                duration="Instantaneous",
+                description=f"Exhale {dmg_type} energy in a 15-foot cone. Each creature must make a Dexterity saving throw (DC 8 + Constitution modifier + proficiency bonus), taking damage on a failed save or half on a success.",
+                ability="Constitution",
+                save="Dexterity",
+                cooldown="Long Rest",
+                uses_left=self.breaths_left,
+                cast=lambda char, targets: _breath_cast(char, targets, radius=15),
+            ),
+            Spell(
+                name="Breath Weapon: Line",
+                casting_time="Attack Action",
+                range_="30ft Line",
+                components=[],
+                duration="Instantaneous",
+                description=f"Exhale {dmg_type} energy in a 30-foot line. Each creature must make a Dexterity saving throw (DC 8 + Constitution modifier + proficiency bonus), taking damage on a failed save or half on a success.",
+                ability="Constitution",
+                save="Dexterity",
+                cooldown="Long Rest",
+                uses_left=self.breaths_left,
+                cast=lambda char, targets: _breath_cast(char, targets, radius=30),
+            ),
+        ]
 
     def cast_draconic_flight(self, char, targets):
         if char.level < 5:
@@ -249,7 +267,7 @@ class Dragonborn(Species):
     def rest(self, long=False):
         if long:
             print("Resting and restoring breath weapon uses...")
-            self.breaths_left = self.proficiency_bonus + 0
+            self.breaths_left = self.proficiency_bonus
             for ability in self.special_abilities:
                 if ability.name.startswith("Breath Weapon"):
                     ability.uses_left = self.breaths_left
@@ -283,47 +301,79 @@ class Dwarf(Species):
 
 
 class Elf(Species):
-    def __init__(self, lineage: Literal["High", "Wood", "Drow"] = "Wood", extra_proficiency: Literal["Perception", "Insight", "Survival"] = "Perception"):
+    LINEAGES = ["High", "Wood", "Drow"]
+    LINEAGE_PROFICIENCIES = ["Perception", "Insight", "Survival"]
+
+    def __init__(self, lineage: Optional[str] = None, extra_proficiency: Optional[str] = None, **kwargs):
         super().__init__()
-        self.todo = []
         self.description = "Elves are graceful and agile humanoids known for their keen senses, longevity, and deep connection to nature and magic. They typically stand between 5 and 6 feet tall, with slender builds and pointed ears. Elves have a natural affinity for the arcane arts and are often skilled spellcasters. They are known for their exceptional dexterity and keen eyesight, making them adept archers and scouts. Elves value beauty, art, and knowledge, often living in harmony with the natural world. High elves are known for their magical prowess, wood elves for their stealth and connection to the forest, and dark elves (drow) for their subterranean societies and unique abilities."
         self.creature_type = "Humanoid"
         self.size = "Medium"
         self.weight = 115
-        if lineage == "Wood":
-            self.speed = 35
-        else:
-            self.speed = 30
+        self.speed = 30
         self.species = "Elf"
-        self.lineage = lineage
-        self.extra_proficiency = extra_proficiency
+        self.lineage = None
+        self.extra_proficiency = None
         self.resistances = []
-        self.advantages = {
-            "Saving Throws": ["Charm"]
-        }
-        if lineage == "Drow":
-            self.vision = "Darkvision of 120ft"
-        else:
-            self.vision = "Darkvision of 60ft"
-        self.full_rest_hours = 4
+        self.advantages = {"Saving Throws": ["Charm"]}
         self.vision = "Darkvision of 60ft"
-        self.full_rest_hours = 8
+        self.full_rest_hours = 4
+        self.special_abilities = []
         # TODO: Add lineage spells at 1, 3, 5.
         # Drow gets dancing lights, faerie fire, and darkness.
         # High gets Prestidigitation and can replace with different wizard cantrips every long rest, detect magic, misty step.
         # Wood gets druidcraft, longstrider, pass without trace.
+        pending = []
+        if lineage in self.LINEAGES:
+            self._apply_lineage(None, lineage)
+        else:
+            pending.append({
+                "Text": "Choose your elven lineage. High elves gain Fey Ancestry and magical aptitude. Wood elves are faster and more at home in the wild. Drow have superior darkvision.",
+                "Options": self.LINEAGES,
+                "Choices": 1,
+                "AllowSame": False,
+                "Function": lambda char, choices: self._apply_lineage(char, choices[0]),
+            })
+        if extra_proficiency in self.LINEAGE_PROFICIENCIES:
+            self._apply_extra_proficiency(None, extra_proficiency)
+        else:
+            pending.append({
+                "Text": "Choose one additional skill proficiency from your elven heritage.",
+                "Options": self.LINEAGE_PROFICIENCIES,
+                "Choices": 1,
+                "AllowSame": False,
+                "Function": lambda char, choices: self._apply_extra_proficiency(char, choices[0]),
+            })
+        self.todo = pending
+
+    def _apply_lineage(self, char, lineage):
+        self.lineage = lineage
+        if lineage == "Wood":
+            self.speed = 35
+            if char is not None:
+                char._base_speed = 35
+        else:
+            self.speed = 30
+            if char is not None:
+                char._base_speed = 30
+        self.vision = "Darkvision of 120ft" if lineage == "Drow" else "Darkvision of 60ft"
+        if char is not None:
+            char.vision = self.vision
         if lineage == "High":
-            self.special_abilities = [
-                Spell(
-                    name="Fey Ancestry",
-                    casting_time="Passive",
-                    range_="Self",
-                    components=[],
-                    duration="Permanent",
-                    description="You have advantage on saving throws against being charmed, and magic can't put you to sleep.",
-                    cast=lambda char, targets: print(f"{char.name} uses Fey Ancestry to resist charm and sleep effects.")
-                )
-            ]
+            self.special_abilities.append(Spell(
+                name="Fey Ancestry",
+                casting_time="Passive",
+                range_="Self",
+                components=[],
+                duration="Permanent",
+                description="You have advantage on saving throws against being charmed, and magic can't put you to sleep.",
+                cast=lambda char, targets: print(f"{char.name} uses Fey Ancestry to resist charm and sleep effects.")
+            ))
+
+    def _apply_extra_proficiency(self, char, proficiency):
+        self.extra_proficiency = proficiency
+        if char is not None and proficiency not in char.proficiencies.get("Skills", []):
+            char.proficiencies["Skills"].append(proficiency)
 
 
 # TODO: Implement other species below. I used auto-generation for these, so they are not accurate yet
@@ -378,22 +428,35 @@ class Goliath(Species):
 
 
 class Halfling(Species):
-    def __init__(self, subrace: Literal["Lightfoot", "Stout"] = "Lightfoot"):
+    SUBRACES = ["Lightfoot", "Stout"]
+
+    def __init__(self, subrace: Optional[str] = None, **kwargs):
         super().__init__()
         self.description = "Halflings are small, nimble humanoids known for their cheerful disposition, resourcefulness, and strong sense of community. They typically stand around 3 feet tall and have a slender build. Halflings are known for their luck and ability to avoid danger, often finding themselves in fortunate situations. They value comfort, friendship, and simple pleasures, often living in close-knit villages or communities. Halflings are skilled at stealth and are adept at moving quietly through their surroundings. They have a natural curiosity and love for adventure, often embarking on journeys to explore the wider world."
         self.creature_type = "Humanoid"
         self.size = "Small"
         self.weight = 40
         self.speed = 25
-        self.subrace = subrace
+        self.subrace = None
         self.species = "Halfling"
         self.resistances = []
-        self.advantages = {
-            "Saving Throws": ["Fear"]
-        }
+        self.advantages = {"Saving Throws": ["Fear"]}
         self.vision = "Standard"
         self.full_rest_hours = 8
         self.special_traits = ["Halfling Luck"]
+        if subrace in self.SUBRACES:
+            self.subrace = subrace
+        else:
+            self.todo = [{
+                "Text": "Choose your halfling subrace. Lightfoot halflings are naturally stealthy. Stout halflings are hardier and have resistance to poison.",
+                "Options": self.SUBRACES,
+                "Choices": 1,
+                "AllowSame": False,
+                "Function": lambda char, choices: self._apply_subrace(char, choices[0]),
+            }]
+
+    def _apply_subrace(self, char, subrace):
+        self.subrace = subrace
 
 
 class Human(Species):
