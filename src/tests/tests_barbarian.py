@@ -81,7 +81,7 @@ def test_rage_damage_bonus_scales():
 def test_unarmored_defense():
     char = _make_barbarian(1)  # Str 18 (+4), Dex 12 (+1), Con 16 (+3)
     # Unarmored: AC = 10 + Dex mod + Con mod = 10 + 1 + 3 = 14
-    expected_ac = 10 + char.get_ability_bonus("Dexterity") + char.get_ability_bonus("Constitution")
+    expected_ac = 10 + char.get_ability_modifier("Dexterity") + char.get_ability_modifier("Constitution")
     assert char.get_armor_class() == expected_ac, (
         f"Unarmored Defense AC should be {expected_ac}, got {char.get_armor_class()}"
     )

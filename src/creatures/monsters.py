@@ -230,7 +230,7 @@ class Monster:
     def ac(self):
         return self._ac_value
 
-    def get_ability_bonus(self, ability):
+    def get_ability_modifier(self, ability):
         return (self.ability_scores[ability] - 10) // 2
 
     def roll_check(self, ability, beat=None, bonus=0, check_type=None,
@@ -242,7 +242,7 @@ class Monster:
         """
         base_bonus = bonus
         if ability:
-            base_bonus += self.get_ability_bonus(ability)
+            base_bonus += self.get_ability_modifier(ability)
             if check_type == 'Saving Throws' and ability in self.saving_throw_proficiencies:
                 base_bonus += self.proficiency_bonus
         base_bonus += self.d20_modifier
@@ -316,7 +316,7 @@ class Monster:
             print(f"{self.name} has no attacks defined.")
             return
 
-        attack_bonus = action.get("attack_bonus", self.proficiency_bonus + self.get_ability_bonus("Strength"))
+        attack_bonus = action.get("attack_bonus", self.proficiency_bonus + self.get_ability_modifier("Strength"))
         print(f"{self.name} attacks {target.name} with {action['name']}.")
         roll = roll_dice(1, 20)
         if extra_disadvantage > 0:

@@ -99,7 +99,7 @@ class Character:
         self.proficiency_bonus = 2 + (self.level - 1) // 4
         self.species.proficiency_bonus = self.proficiency_bonus
 
-        self.max_hp = 10 + self.get_ability_bonus("Constitution")
+        self.max_hp = 10 + self.get_ability_modifier("Constitution")
         if self.species.species == "Dwarf":
             self.max_hp += 1
         self.current_hp = self.max_hp
@@ -267,11 +267,11 @@ class Character:
             self.max_hp += 2
             self.current_hp += 2
         if roll_for_health:
-            hp = roll_dice(1, class_leveling.hit_dice) + self.get_ability_bonus("Constitution")
+            hp = roll_dice(1, class_leveling.hit_dice) + self.get_ability_modifier("Constitution")
             self.max_hp += hp
             self.current_hp += hp
         else:
-            hp = (class_leveling.hit_dice // 2) + 1 + self.get_ability_bonus("Constitution")
+            hp = (class_leveling.hit_dice // 2) + 1 + self.get_ability_modifier("Constitution")
             self.max_hp += hp
             self.current_hp += hp
         self.level += 1
@@ -407,12 +407,12 @@ class Character:
             item.on_unequip(self)
         print(f"{self.name} has unequipped {item.name}.")
 
-    def get_ability_bonus(self, ability):
+    def get_ability_modifier(self, ability):
         return (self.ability_scores[ability] - 10) // 2
 
     def get_armor_class(self):
         # Base AC
-        ac = 10 + self.get_ability_bonus("Dexterity")
+        ac = 10 + self.get_ability_modifier("Dexterity")
         unarmored = True
         for item in self.equipped_items:
             if item.type == "Armor":
@@ -420,10 +420,10 @@ class Character:
                 unarmored = False
         # Unarmored defense for barbarians
         if self.classes and self.classes[0].name == "Barbarian" and unarmored:
-            ac = 10 + self.get_ability_bonus("Dexterity") + self.get_ability_bonus("Constitution")
+            ac = 10 + self.get_ability_modifier("Dexterity") + self.get_ability_modifier("Constitution")
         # Unarmored defense for monks
         if self.classes and self.classes[0].name == "Monk" and unarmored:
-            ac = 10 + self.get_ability_bonus("Dexterity") + self.get_ability_bonus("Wisdom")
+            ac = 10 + self.get_ability_modifier("Dexterity") + self.get_ability_modifier("Wisdom")
         for item in self.equipped_items:
             if item.type == "Shield" and self.classes[0].name != "Monk" and self.proficiencies["Armor"] and "Shield" in self.proficiencies["Armor"]:
                 ac += item.ac(self)
@@ -435,8 +435,15 @@ class Character:
         from src.todo import handle_todo
         handle_todo(self)
 
-    def get_skill_bonus(self, skill):
-        return self.get_ability_bonus(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
+    def get_skill_modifier(self, skill):
+        skill = skill.capitalize()
+        modifier = self.get_ability_modifier(dnd_skills[skill]) + (self.proficiency_bonus if skill in self.proficiencies["Skills"] else 0)
+
+        if skill in ("Arcana", "Religion") and any(
+            "Thaumaturge" in t for t in getattr(self, "special_traits", [])
+        ):
+            modifier += max(1, self.get_ability_modifier("Wisdom"))
+        return modifier
 
     def attack(self, target, weapon_name: Optional[str] = None, action_type: str = "Action", lethal: bool = True, extra_disadvantage: int = 0):
         advantage_counter = 0
@@ -464,16 +471,16 @@ class Character:
                     weapon = item
         if weapon is None:
             raise Exception(f"Weapon not found: {weapon_name}. Options are {[w.name for w in weapons]}")
-        ability_bonus = self.get_ability_bonus("Strength")
+        ability_bonus = self.get_ability_modifier("Strength")
         if "Finesse" in weapon.properties:
-            ability_bonus = max([self.get_ability_bonus("Dexterity"), ability_bonus])
+            ability_bonus = max([self.get_ability_modifier("Dexterity"), ability_bonus])
         proficiency_bonus = self.proficiency_bonus if weapon.category in self.proficiencies["Weapons"] else 0
         # give extra bonus to attack advantage if target marked with advantage to be attacked
         advantage_counter += target.advantages["ToBeAttacked"]
         advantage_counter -= target.disadvantages["ToBeAttacked"]
         advantage_counter -= extra_disadvantage
         print(f"{self.name} attacks {target.name} with {weapon.name}.")
-        success, total, crit_fail, crit_success = self.roll_check(None, beat=target.ac(), bonus=ability_bonus + proficiency_bonus, check_type="Attack", advantage_counter=advantage_counter)
+        success, total, crit_fail, crit_success, _ = self.roll_check(None, beat=target.ac(), bonus=ability_bonus + proficiency_bonus, check_type="Attack", advantage_counter=advantage_counter)
         dice_split = [int(_) for _ in weapon.damage.split("d")]
         if "Paralyzed" in [_.name for _ in target.active_effects] and success:
             print("It's a critical hit due to Paralysis.")
@@ -585,6 +592,7 @@ class Character:
 
     def grapple(self, target):
         from src.conditions import Grappled
+        # TODO: Add checks for whether the target is already grappled, whether the target is too big to grapple, and rolling the grapple check with advantage if the target is restrained or incapacitated, etc.
         Grappled(by=self).apply(target)
 
     def dash(self, as_bonus_action=False):
@@ -612,11 +620,11 @@ class Character:
         roll = roll_dice(1, 20)
         bonus += self.d20_modifier
         if check_type in ["Abilities", "Saving Throws"]:
-            bonus += self.get_ability_bonus(ability)
+            bonus += self.get_ability_modifier(ability)
         elif check_type == "Skills":
-            bonus += self.get_skill_bonus(ability)
+            bonus += self.get_skill_modifier(ability)
         elif check_type == "Initiative":
-            bonus += self.get_ability_bonus("Dexterity")
+            bonus += self.get_ability_modifier("Dexterity")
         if isinstance(self.advantages[check_type], list):
             for adv in self.advantages[check_type]:
                 if adv == ability:
@@ -653,7 +661,7 @@ class Character:
                     print(f"  Indomitable Might raises total from {total} to {str_score}.")
                     total = str_score
                     success = beat is None or total >= beat
-        return success, total, crit_fail, crit_success
+        return success, total, crit_fail, crit_success, bonus
 
     def rest(self, long=False):
         self.species.rest(long=long)

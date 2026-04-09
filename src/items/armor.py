@@ -21,7 +21,7 @@ class Armor(Item):
     def ac(self, character: Character):
         ac = self.base_ac
         if self.add_dex:
-            ac += min([character.get_ability_bonus("Dexterity"), self.dex_add_max])
+            ac += min([character.get_ability_modifier("Dexterity"), self.dex_add_max])
         return ac
 
     def on_equip(self, character: Character):

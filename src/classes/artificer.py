@@ -243,7 +243,7 @@ class Artificer(Class):
                         "You can use this feature a number of times equal to your Intelligence modifier "
                         "(minimum once), and you regain all expended uses when you finish a Long Rest."
                     ),
-                    uses_left=max(1, character.get_ability_bonus("Intelligence")),
+                    uses_left=max(1, character.get_ability_modifier("Intelligence")),
                     cooldown="Long Rest",
                 )
             )

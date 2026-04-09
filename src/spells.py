@@ -16,12 +16,12 @@ _SPELL_CAST_REGISTRY: dict = {}
 
 def _spell_save_dc(caster):
     ability = getattr(caster, 'spellcasting_ability', 'Intelligence')
-    return 8 + caster.proficiency_bonus + caster.get_ability_bonus(ability)
+    return 8 + caster.proficiency_bonus + caster.get_ability_modifier(ability)
 
 
 def _spell_atk_bonus(caster):
     ability = getattr(caster, 'spellcasting_ability', 'Intelligence')
-    return caster.proficiency_bonus + caster.get_ability_bonus(ability)
+    return caster.proficiency_bonus + caster.get_ability_modifier(ability)
 
 
 def _caster_level(caster):
@@ -76,7 +76,7 @@ def _spell_save(caster, target, ability, dc=None):
         if ability in getattr(e, 'auto_fail_saving_throws', ()):
             print(f'  {target.name} auto-fails {ability} save.')
             return False, 0
-    success, total, _, _ = target.roll_check(ability, beat=dc, check_type='Saving Throws')
+    success, total, _, _, _ = target.roll_check(ability, beat=dc, check_type='Saving Throws')
     return success, total
 
 
@@ -84,7 +84,7 @@ def _spell_attack_roll(caster, target):
     bonus = _spell_atk_bonus(caster)
     adv = sum(getattr(e, 'adv_to_be_attacked', 0) for e in getattr(target, 'active_effects', []))
     dis = sum(getattr(e, 'disadv_to_be_attacked', 0) for e in getattr(target, 'active_effects', []))
-    success, _, _, crit = caster.roll_check(None, beat=target.ac(), bonus=bonus,
+    success, _, _, crit, _ = caster.roll_check(None, beat=target.ac(), bonus=bonus,
         check_type='Attack', advantage_counter=adv - dis)
     return success, crit
 
@@ -296,7 +296,7 @@ def _f_heal(n, d, bonus=0, scale=0, base_lvl=1, use_mod=True):
     def cast(caster, targets):
         slot = getattr(caster, '_cast_level', base_lvl)
         extra = (slot - base_lvl) * scale if scale and slot > base_lvl else 0
-        mod = caster.get_ability_bonus(getattr(caster, 'spellcasting_ability', 'Intelligence')) if use_mod else 0
+        mod = caster.get_ability_modifier(getattr(caster, 'spellcasting_ability', 'Intelligence')) if use_mod else 0
         for t in _targets_list(targets):
             _heal(t, _d(n + extra, d) + bonus + mod)
     return cast
@@ -7501,7 +7501,7 @@ _SPELL_CAST_REGISTRY.update({
     'AlterSelf':       _f_utility('Alter Self — change physical form'),
     'AnimalMessenger': _f_utility('Animal Messenger — beast delivers a message'),
     'ArcaneLock':      _f_utility('Arcane Lock — magically lock a door or container'),
-    'ArcaneVigor':     (lambda caster, targets: _heal(caster, _d(2, 8) + caster.get_ability_bonus(getattr(caster, 'spellcasting_ability', 'Intelligence')))),
+    'ArcaneVigor':     (lambda caster, targets: _heal(caster, _d(2, 8) + caster.get_ability_modifier(getattr(caster, 'spellcasting_ability', 'Intelligence')))),
     'Augury':          _f_utility('Augury — divine weal/woe of an action'),
     'Barkskin':        _f_utility('Barkskin — target natural AC becomes 17'),
     'BeastSense':      _f_utility('Beast Sense — perceive through a beast\'s senses'),

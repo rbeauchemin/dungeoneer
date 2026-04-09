@@ -138,7 +138,7 @@ def _check_relentless_rage(player) -> bool:
     if not any(getattr(e, "name", None) == "Rage" for e in player.active_effects):
         return False
     print(f"  {player.name} drops to 0 HP while raging! Relentless Rage activates (DC {dc} Con save).")
-    success, _, _, _ = player.roll_check("Constitution", beat=dc, check_type="Saving Throws")
+    success, _, _, _, _ = player.roll_check("Constitution", beat=dc, check_type="Saving Throws")
     if success:
         barb_level = next((cls.level for cls in player.classes if cls.name == "Barbarian"), 1)
         player.current_hp = barb_level * 2
@@ -329,14 +329,14 @@ class Combat:
         rolls: list[tuple[float, object]] = []
 
         for p in self.players:
-            dex = p.get_ability_bonus("Dexterity")
-            _, total, _, _ = p.roll_check(
+            dex = p.get_ability_modifier("Dexterity")
+            _, total, _, _, _ = p.roll_check(
                 None, beat=None, bonus=dex, check_type="Initiative"
             )
             rolls.append((total + dex * 0.001, p))
 
         for m in self.monsters:
-            dex = m.get_ability_bonus("Dexterity")
+            dex = m.get_ability_modifier("Dexterity")
             raw = roll_dice(1, 20) + dex
             print(f"  {m.name} rolls initiative: {raw}")
             rolls.append((raw + dex * 0.001, m))

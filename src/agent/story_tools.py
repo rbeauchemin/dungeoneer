@@ -14,30 +14,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 from src.agent.campaign import _campaign
-from src.common import roll_dice
-
-# ── Skill → ability mapping ────────────────────────────────────────────────────
-
-_SKILL_ABILITY: dict[str, str] = {
-    "Acrobatics": "Dexterity",
-    "Animal Handling": "Wisdom",
-    "Arcana": "Intelligence",
-    "Athletics": "Strength",
-    "Deception": "Charisma",
-    "History": "Intelligence",
-    "Insight": "Wisdom",
-    "Intimidation": "Charisma",
-    "Investigation": "Intelligence",
-    "Medicine": "Wisdom",
-    "Nature": "Intelligence",
-    "Perception": "Wisdom",
-    "Performance": "Charisma",
-    "Persuasion": "Charisma",
-    "Religion": "Intelligence",
-    "Sleight of Hand": "Dexterity",
-    "Stealth": "Dexterity",
-    "Survival": "Wisdom",
-}
+from src.creatures.character import Character
 
 # Monsters available for random encounters (subset with friendly names)
 _MONSTER_REGISTRY: dict[str, str] = {
@@ -56,7 +33,7 @@ _MONSTER_REGISTRY: dict[str, str] = {
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _get_player(name: str):
+def _get_player(name: str) -> Character:
     """Case-insensitive partial name search over campaign players."""
     for p in _campaign.players:
         if name.lower() in p.name.lower():
@@ -102,21 +79,16 @@ def roll_skill_check(player_name: str, skill: str, dc: int) -> str:
         names = [p.name for p in _campaign.players]
         return f"No player matching '{player_name}'. Available: {names}"
 
-    ability = _SKILL_ABILITY.get(skill, "Strength")
-    score = player.ability_scores.get(ability, 10)
-    modifier = (score - 10) // 2
+    success, total, crit_fail, crit_success, modifier = player.roll_check(skill, check_type="Skills", beat=dc)
 
-    if skill in player.proficiencies.get("Skills", []):
-        modifier += player.proficiency_bonus
-
-    roll = roll_dice(1, 20)
-    total = roll + modifier
     mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
-    outcome = "SUCCESS" if total >= dc else "FAILURE"
+    outcome = "SUCCESS" if success else "FAILURE"
+    if any([crit_fail, crit_success]):
+        outcome += " (CRITICAL)"
 
     result = (
-        f"{player.name} — {skill} ({ability}) check:\n"
-        f"  d20({roll}) {mod_str} = {total}  vs DC {dc}  →  {outcome}"
+        f"{player.name} — {skill} check:\n"
+        f"  d20{mod_str} = {total} vs DC {dc} → {outcome}"
     )
     _campaign.story_log.append(result)
     return result
@@ -133,17 +105,16 @@ def roll_ability_check(player_name: str, ability: str, dc: int) -> str:
         return f"No player matching '{player_name}'."
 
     ability = ability.capitalize()
-    score = player.ability_scores.get(ability, 10)
-    modifier = (score - 10) // 2
+    success, total, crit_fail, crit_success, modifier = player.roll_check(ability, check_type="Abilities", beat=dc)
 
-    roll = roll_dice(1, 20)
-    total = roll + modifier
     mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
-    outcome = "SUCCESS" if total >= dc else "FAILURE"
+    outcome = "SUCCESS" if success else "FAILURE"
+    if any([crit_fail, crit_success]):
+        outcome += " (CRITICAL)"
 
     result = (
         f"{player.name} — {ability} check:\n"
-        f"  d20({roll}) {mod_str} = {total}  vs DC {dc}  →  {outcome}"
+        f"  d20{mod_str} = {total} vs DC {dc} → {outcome}"
     )
     _campaign.story_log.append(result)
     return result
@@ -161,22 +132,15 @@ def roll_saving_throw(player_name: str, ability: str, dc: int) -> str:
         return f"No player matching '{player_name}'."
 
     ability = ability.capitalize()
-    score = player.ability_scores.get(ability, 10)
-    modifier = (score - 10) // 2
-
-    proficient = ability in player.proficiencies.get("Saving Throws", [])
-    if proficient:
-        modifier += player.proficiency_bonus
-
-    roll = roll_dice(1, 20)
-    total = roll + modifier
+    success, total, crit_fail, crit_success, modifier = player.roll_check(ability, check_type="Saving Throws", beat=dc)
     mod_str = f"+{modifier}" if modifier >= 0 else str(modifier)
-    prof_note = " (proficient)" if proficient else ""
-    outcome = "SUCCESS" if total >= dc else "FAILURE"
+    outcome = "SUCCESS" if success else "FAILURE"
+    if any([crit_fail, crit_success]):
+        outcome += " (CRITICAL)"
 
     result = (
-        f"{player.name} — {ability} saving throw{prof_note}:\n"
-        f"  d20({roll}) {mod_str} = {total}  vs DC {dc}  →  {outcome}"
+        f"{player.name} — {ability} saving throw:\n"
+        f"  d20{mod_str} = {total} vs DC {dc} → {outcome}"
     )
     _campaign.story_log.append(result)
     return result

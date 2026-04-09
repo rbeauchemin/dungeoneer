@@ -1,5 +1,5 @@
 from src.creatures import Character
-from src.spells import Spell
+from src.spells import Spell, get_spells
 from src.items import *
 from src.classes._base import (
     Class, _FULL_CASTER_SLOTS,
@@ -95,9 +95,16 @@ class Cleric(Class):
                     "Thaumaturge: Choose one extra cantrip from the Cleric spell list. "
                     "You also add your Wisdom modifier (min +1) to Intelligence (Arcana or Religion) checks."
                 ),
-                "Options": ["Cantrip"],  # placeholder — real cantrip picker should be wired up here
-                "Function": lambda char, ch, **kw: char.special_traits.append(
-                    "Thaumaturge: +Wisdom modifier to Intelligence (Arcana or Religion) checks."
+                "Options": [spell.name for spell in get_spells(classes=["Cleric"], levels=[0])],
+                "Choices": 1,
+                "AllowSame": False,
+                "Function": lambda char, ch: (
+                    char.spells.append(next(
+                        s for s in get_spells(classes=["Cleric"], levels=[0]) if s.name == ch[0]
+                    )),
+                    char.special_traits.append(
+                        "Thaumaturge: +Wisdom modifier to Intelligence (Arcana or Religion) checks."
+                    ),
                 ),
             })
 

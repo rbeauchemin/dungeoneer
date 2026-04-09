@@ -219,7 +219,7 @@ class Dragonborn(Species):
         dmg_type = self.breath_weapon_damage_type
 
         def _breath_cast(char, targets, _dmg_type=dmg_type, radius=15):
-            dc = 8 + char.get_ability_bonus('Constitution') + char.proficiency_bonus
+            dc = 8 + char.get_ability_modifier('Constitution') + char.proficiency_bonus
             n = _cantrip_dice(char)
             ts = _aoe_targets(char, char, radius, include_caster=False) or _targets_list(targets)
             for t in ts:
