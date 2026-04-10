@@ -21,6 +21,9 @@ To use a free local model, do the following steps:
 I decided to utilize my own copy of the 2024 PHB for this project, incorporating the updated 2024 concepts as Python classes.
 
 ## Examples
+This is how the application looks:
+![Frontend](images/chat_frontend.png)
+
 There are story examples in the examples folder.
 
 This is what the terminal-based combat experience looks like:
