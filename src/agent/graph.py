@@ -7,7 +7,7 @@ Usage::
 
     from src.agent.graph import create_agent
 
-    agent = create_agent()                          # defaults to claude-haiku-4-5
+    agent = create_agent()                          # defaults to gemma4
     agent = create_agent(model="claude-sonnet-4-6") # cheaper / faster option
     result = agent.invoke({"messages": [...]})
 """
@@ -50,13 +50,13 @@ Do not repeat the raw game output verbatim — summarize it naturally.
 """)
 
 
-def create_agent(model: str = "claude-haiku-4-5"):
+def create_agent(model: str = "gemma4"):
     """Return a compiled LangGraph ReAct agent bound to all Dungeoneer tools.
 
     Parameters
     ----------
     model:
-        Model ID. Defaults to ``claude-haiku-4-5``. Pass an Ollama model name
+        Model ID. Defaults to ``gemma4``. Pass an Ollama model name
         to run locally.
     """
     if model.startswith("claude"):

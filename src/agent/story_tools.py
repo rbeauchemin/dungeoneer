@@ -616,7 +616,7 @@ Never break character unless the player explicitly asks an out-of-game question.
 """
 
 
-def create_story_agent(model: str = "claude-haiku-4-5"):
+def create_story_agent(model: str = "gemma4"):
     """Return a compiled LangGraph ReAct agent for story / DM mode."""
     if model.startswith("claude"):
         from langchain_anthropic import ChatAnthropic

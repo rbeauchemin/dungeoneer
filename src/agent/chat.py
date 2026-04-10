@@ -286,11 +286,11 @@ def run(
         jump straight into a single combat encounter (useful for testing).
     model:
         Model ID used for all agents. Defaults to DUNGEONEER_MODEL env var,
-        or ``claude-haiku-4-5`` if unset. Use an Ollama model name (e.g.
+        or ``gemma4`` if unset. Use an Ollama model name (e.g.
         ``llama3``) to run locally without an Anthropic key.
     """
     if model is None:
-        model = os.getenv("DUNGEONEER_MODEL", "claude-haiku-4-5")
+        model = os.getenv("DUNGEONEER_MODEL", "gemma4")
     print(_hr())
     print("  DUNGEONEER")
     print("  A D&D 5e Text Adventure")
