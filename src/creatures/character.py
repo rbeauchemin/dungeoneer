@@ -112,7 +112,7 @@ class Character:
                 reverse=True,
             )
             print(f"Rolled ability scores: {', '.join(str(s) for s in self._ability_score_pool)}")
-            self.todo.append(self._make_ability_score_todo(0))
+            self.todo.append(self._make_ability_score_todo())
         # TODO: Handle traits, resistances, proficiencies, special abilities
         self.description = self.description + " " + description
         self.species.ability_scores = self.ability_scores
@@ -123,37 +123,30 @@ class Character:
         self.bonus_actions_left = 1
         # TODO: create a better actions handling system that accounts for multiattack, legendary actions, reactions, bonus actions, and action types (e.g. some abilities can only be used as a reaction, some can only be used on the turn you take the Attack action, etc.)
 
-    _ABILITY_ASSIGNMENT_ORDER = [
-        "Strength", "Dexterity", "Constitution",
-        "Intelligence", "Wisdom", "Charisma",
-    ]
-
-    def _make_ability_score_todo(self, idx: int) -> dict:
-        ability = self._ABILITY_ASSIGNMENT_ORDER[idx]
+    def _make_ability_score_todo(self) -> dict:
+        abilities = [
+            "Strength", "Dexterity", "Constitution",
+            "Intelligence", "Wisdom", "Charisma",
+        ]
         pool = self._ability_score_pool
 
         def apply(char, choices):
-            score = int(choices[0])
-            pool.remove(score)
-            char.ability_scores[ability] = score
-            if idx + 1 < len(char._ABILITY_ASSIGNMENT_ORDER):
-                char.todo.append(char._make_ability_score_todo(idx + 1))
-            else:
-                # All 6 scores assigned — recalculate HP with true Constitution
-                con_mod = char.get_ability_modifier("Constitution")
-                char.max_hp = 10 + con_mod
-                if char.species.species == "Dwarf":
-                    char.max_hp += char.level
-                char.current_hp = char.max_hp
+            for idx, ability in enumerate(choices):
+                char.ability_scores[ability] = pool[idx]
+            # recalculate HP with true Constitution
+            con_mod = char.get_ability_modifier("Constitution")
+            char.max_hp = 10 + con_mod
+            if char.species.species == "Dwarf":
+                char.max_hp += char.level
+            char.current_hp = char.max_hp
 
         scores_display = ", ".join(str(s) for s in sorted(pool, reverse=True))
         return {
             "Text": (
-                f"Assign one of your rolled scores to {ability}. "
-                f"Available scores: {scores_display}."
+                f"Assign your priority order of abilities given available scores: {scores_display}."
             ),
-            "Options": [str(s) for s in pool],
-            "Choices": 1,
+            "Options": abilities,
+            "Choices": 6,
             "AllowSame": False,
             "Function": apply,
         }

@@ -249,9 +249,8 @@ Your job:
    you want to confirm what is available.
 3. Call create_character() once you have enough information.
 4. Work through every pending decision with get_next_todo() and resolve_todo().
-   - Summarise each choice in plain English before asking.
-   - If a list is very long (e.g. spells), suggest a sensible shortlist that
-     fits the character concept rather than reading every option aloud.
+   - List every option verbatim as shown in get_next_todo() when asking the player to choose.
+   - Suggest and summarize the top handful of choices in plain English.
 5. When get_next_todo() says "No pending decisions", call get_character_summary()
    and present the finished character warmly to the player.
 
