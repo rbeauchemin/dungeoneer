@@ -153,12 +153,6 @@ def run_creation_phase(model: str) -> None:
             messages = result["messages"]
             print(f"\nAgent: {result['messages'][-1].content}")
 
-            # Safety net: auto-finalize if the agent left todos unresolved
-            char = _campaign.pending_character
-            if char is not None and char.todo:
-                from src.agent.creation import finalize_character
-                finalize_character.invoke({})
-
 
 # ── Phase 3: Combat sub-loop ───────────────────────────────────────────────────
 

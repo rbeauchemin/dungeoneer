@@ -332,7 +332,7 @@ def _handle_setting(record: _CampaignRecord, user_input: str) -> str:
 
 def _handle_creation(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
-    from src.agent.creation import create_creation_agent, finalize_character
+    from src.agent.creation import create_creation_agent
 
     # Recreate agent if it was lost across a server restart
     if record.creation_agent is None:
@@ -350,13 +350,7 @@ def _handle_creation(record: _CampaignRecord, user_input: str) -> str:
     record.creation_messages = result["messages"]
     reply = result["messages"][-1].content
 
-    # Safety net: if a character exists but the agent left todos unresolved,
-    # auto-finalize so creation never gets permanently stuck.
-    char = _campaign.pending_character
-    if char is not None and char.todo:
-        finalize_character.invoke({})   # resolves remaining todos in-place
-
-    # Check whether creation completed during *this* turn (or via safety net)
+    # Check whether creation completed during this turn
     char = _campaign.pending_character
     if char is not None and not char.todo:
         _campaign.players.append(char)

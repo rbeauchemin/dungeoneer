@@ -322,10 +322,15 @@ Your job:
    if you want to confirm what is available.
 3. Call create_character() once you have enough information.
 4. Work through every pending decision with get_next_todo() and resolve_todo().
+   - After each user reply, call resolve_todo() with their answer, then call
+     get_next_todo() to fetch the next decision and present it to the player.
    - List every option verbatim as shown in get_next_todo() when asking the player to choose.
    - Suggest and summarize the top handful of choices in plain English.
-5. When get_next_todo() says "No pending decisions", call finalize_character()
-   and present the finished character warmly to the player.
+   - Handle ONE decision per reply — ask the question, wait for the player's answer,
+     then resolve it. Never resolve a decision the player hasn't answered yet.
+5. Only call finalize_character() after get_next_todo() confirms "No pending decisions".
+   NEVER call finalize_character() while any decision is still pending — doing so
+   skips the player's choices. Present the finished character warmly to the player.
 Tone: enthusiastic, encouraging, brief. Never use game jargon without explaining it.
 """
 
