@@ -230,9 +230,82 @@ def get_character_summary() -> str:
     )
 
 
+@tool
+def finalize_character() -> str:
+    """Resolve all remaining character-creation decisions with sensible defaults.
+
+    Call this immediately after create_character() to finish the character
+    in one step — or at any point to auto-complete whatever is left.
+    Picks reasonable first-available options (skills, equipment, fighting
+    style, etc.) so the player can start the adventure right away.
+    """
+    char = _char()
+    if char is None:
+        return "No character is being created. Call create_character() first."
+    if not char.todo:
+        return "No pending decisions — the character is already complete!"
+
+    resolved: list[str] = []
+    safety = 0
+
+    while char.todo and safety < 30:
+        safety += 1
+        item = char.todo[-1]
+
+        if isinstance(item, str):
+            char.todo.pop()
+            continue
+
+        if not isinstance(item, dict):
+            char.todo.pop()
+            continue
+
+        options: list = item.get("Options", [])
+        n: int = item.get("Choices", 1) or 1
+        allow_same: bool = item.get("AllowSame", False)
+
+        if not options:
+            char.todo.pop()
+            continue
+
+        # Build n choices: prefer unique options; only repeat if explicitly allowed
+        # and there aren't enough unique options.
+        if n <= len(options):
+            choices = options[:n]
+        elif allow_same:
+            # cycle through unique options to fill n slots
+            choices = (options * ((n // len(options)) + 1))[:n]
+        else:
+            choices = options[:min(n, len(options))]
+
+        char.todo.pop()
+        try:
+            item["Function"](char, choices)
+            label = item.get("Text", "?")[:45].strip().rstrip(".")
+            resolved.append(f"{label}: {', '.join(str(c) for c in choices)}")
+        except Exception:
+            # Skip unresolvable items rather than infinite-looping
+            pass
+
+    if char.todo:
+        remaining = len(char.todo)
+        return (
+            f"Partially finalized — {len(resolved)} resolved, "
+            f"{remaining} item(s) could not be auto-completed."
+        )
+
+    summary = get_character_summary.invoke({})
+    return (
+        f"Character fully finalized! Resolved {len(resolved)} decision(s):\n"
+        + "\n".join(f"  • {r}" for r in resolved)
+        + f"\n\n{summary}"
+    )
+
+
 _CREATION_TOOLS = [
     list_options,
     create_character,
+    finalize_character,
     get_next_todo,
     resolve_todo,
     get_character_summary,
@@ -241,19 +314,18 @@ _CREATION_TOOLS = [
 _CREATION_SYSTEM = """\
 You are a friendly D&D 5e character-creation guide helping a player build their
 first character for a campaign.
-
 Your job:
 1. Learn what kind of character the player wants to play (ask about personality,
    fighting style, fantasy archetype — *not* raw stats).
-2. Map their vision to a species, background, and class. Use list_options() if
-   you want to confirm what is available.
+2. Map their vision to a species, background, and class. Use
+   list_options('species'), list_options('backgrounds'), list_options('classes')
+   if you want to confirm what is available.
 3. Call create_character() once you have enough information.
 4. Work through every pending decision with get_next_todo() and resolve_todo().
    - List every option verbatim as shown in get_next_todo() when asking the player to choose.
    - Suggest and summarize the top handful of choices in plain English.
-5. When get_next_todo() says "No pending decisions", call get_character_summary()
+5. When get_next_todo() says "No pending decisions", call finalize_character()
    and present the finished character warmly to the player.
-
 Tone: enthusiastic, encouraging, brief. Never use game jargon without explaining it.
 """
 

@@ -79,6 +79,13 @@ class GameSession:
 
         return self._take_output()
 
+    def get_map_dict(self, z: int = 0):
+        """Return the map state as a JSON-serializable dict, or None if unavailable."""
+        m = getattr(self.combat, "map", None)
+        if m is None:
+            return None
+        return m.to_dict(z)
+
     def get_state_description(self) -> str:
         """Return a plain-text snapshot of current combat state for the agent."""
         from src.combat import _is_dead  # avoid circular import at module level

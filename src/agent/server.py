@@ -190,10 +190,19 @@ def send_message(campaign_id: str, body: _SendBody):
     assistant_msg = _msg("assistant", reply)
     record.display_messages.append(assistant_msg)
 
+    # Include map state whenever a combat session is active
+    map_data = None
+    if record.combat_session is not None:
+        try:
+            map_data = record.combat_session.get_map_dict()
+        except Exception:
+            pass
+
     return {
         "content": reply,
         "phase": record.phase,
         "campaign": _summary(record),
+        "map": map_data,
     }
 
 
@@ -235,6 +244,7 @@ def _handle_setting(record: _CampaignRecord, user_input: str) -> str:
 
 def _handle_creation(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
+    from src.agent.creation import finalize_character
 
     # Check whether creation completed during the *previous* turn
     char = _campaign.pending_character
@@ -248,7 +258,13 @@ def _handle_creation(record: _CampaignRecord, user_input: str) -> str:
     record.creation_messages = result["messages"]
     reply = result["messages"][-1].content
 
-    # Check whether creation completed during *this* turn
+    # Safety net: if a character exists but the agent left todos unresolved,
+    # auto-finalize so creation never gets permanently stuck.
+    char = _campaign.pending_character
+    if char is not None and char.todo:
+        finalize_character.invoke({})   # resolves remaining todos in-place
+
+    # Check whether creation completed during *this* turn (or via safety net)
     char = _campaign.pending_character
     if char is not None and not char.todo:
         _campaign.players.append(char)
@@ -290,16 +306,55 @@ def _kickoff_story(record: _CampaignRecord) -> str:
     return reply
 
 
+_COMBAT_WORDS = frozenset([
+    "attack", "attacks", "strikes", "charges", "assaults", "lunges", "swings",
+    "slashes", "stabs", "fires", "shoots", "casts", "combat", "battle",
+    "fight", "fighting", "initiative", "hostile", "ambush", "ambushes",
+    "draw their weapon", "draw their sword", "draw their axe",
+    "moves to attack", "springs into action", "roll for initiative",
+    "combat begins", "the battle", "clash", "clashes",
+])
+
+
+def _has_combat_language(text: str) -> bool:
+    """Return True if the text describes active combat starting."""
+    t = text.lower()
+    return any(w in t for w in _COMBAT_WORDS)
+
+
 def _handle_story(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
+    from langchain_core.messages import ToolMessage
 
     record.story_messages.append(HumanMessage(content=user_input))
     result = record.story_agent.invoke({"messages": record.story_messages})
     record.story_messages = result["messages"]
     reply = result["messages"][-1].content
 
+    # If the reply describes combat but start_combat() was not called, nudge the agent
+    # once to make the tool call it forgot.
+    if _campaign.active_combat is None and _has_combat_language(reply):
+        nudge = (
+            "SYSTEM REMINDER: Your last response described combat starting, but you "
+            "did not call start_combat(). You MUST call start_combat() right now with "
+            "the enemies you just described. Do not add more narration — only call the tool."
+        )
+        record.story_messages.append(HumanMessage(content=nudge))
+        result2 = record.story_agent.invoke({"messages": record.story_messages})
+        record.story_messages = result2["messages"]
+
     if _campaign.active_combat is not None:
         reply += "\n\n" + _begin_combat(record)
+    else:
+        # Surface any tool errors so the player can see what went wrong
+        for m in result["messages"]:
+            if isinstance(m, ToolMessage) and "COMBAT_INITIATED" not in (m.content or ""):
+                if hasattr(m, "name") and m.name == "start_combat":
+                    reply += (
+                        f"\n\n*⚠ Combat failed to start: {m.content}*"
+                        "\n*Check that monster names are valid — use list_available_monsters.*"
+                    )
+                    break
 
     return reply
 

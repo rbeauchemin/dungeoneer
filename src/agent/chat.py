@@ -37,6 +37,21 @@ from src.agent.tools import set_session, ALL_TOOLS
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
 
+_COMBAT_WORDS = frozenset([
+    "attack", "attacks", "strikes", "charges", "assaults", "lunges", "swings",
+    "slashes", "stabs", "fires", "shoots", "combat", "battle", "fight",
+    "fighting", "initiative", "hostile", "ambush", "ambushes",
+    "draw their weapon", "moves to attack", "springs into action",
+    "roll for initiative", "combat begins", "the battle", "clash",
+])
+
+
+def _has_combat_language(text: str) -> bool:
+    """Return True if text describes active combat starting."""
+    t = text.lower()
+    return any(w in t for w in _COMBAT_WORDS)
+
+
 def _hr(char: str = "=", width: int = 60) -> str:
     return char * width
 
@@ -138,6 +153,12 @@ def run_creation_phase(model: str) -> None:
             messages = result["messages"]
             print(f"\nAgent: {result['messages'][-1].content}")
 
+            # Safety net: auto-finalize if the agent left todos unresolved
+            char = _campaign.pending_character
+            if char is not None and char.todo:
+                from src.agent.creation import finalize_character
+                finalize_character.invoke({})
+
 
 # ── Phase 3: Combat sub-loop ───────────────────────────────────────────────────
 
@@ -229,6 +250,17 @@ def run_story_phase(model: str) -> None:
         messages = result["messages"]
         dm_reply = result["messages"][-1].content
         print(f"\nDM: {dm_reply}")
+
+        # If the reply describes combat but the tool wasn't called, nudge once
+        if _campaign.active_combat is None and _has_combat_language(dm_reply):
+            nudge = (
+                "SYSTEM REMINDER: Your last response described combat starting, "
+                "but you did not call start_combat(). Call start_combat() right now "
+                "with the enemies you just mentioned. Only call the tool — no more narration."
+            )
+            messages.append(HumanMessage(content=nudge))
+            result = agent.invoke({"messages": messages})
+            messages = result["messages"]
 
         # Did the DM trigger combat?
         if _campaign.active_combat is not None:

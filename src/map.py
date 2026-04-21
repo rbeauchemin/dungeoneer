@@ -744,6 +744,51 @@ class Map:
             lines.append(border)
         return "\n".join(lines)
 
+    def to_dict(self, z: int = 0) -> dict:
+        """Serialize one z-layer of the map to a JSON-serializable dict.
+
+        Used by the web server to send map state to the frontend.
+        """
+        creatures = []
+        for creature, (cx, cy, cz) in self._creatures.items():
+            if cz == z:
+                is_player = hasattr(creature, "classes")
+                creatures.append({
+                    "name": getattr(creature, "name", "?"),
+                    "x": cx,
+                    "y": cy,
+                    "type": "player" if is_player else "monster",
+                    "hp": getattr(creature, "current_hp", 0),
+                    "max_hp": max(1, getattr(creature, "max_hp", 1)),
+                })
+
+        objects = []
+        for (ox, oy, oz), objs in self._objects.items():
+            if oz == z:
+                for obj in objs:
+                    objects.append({
+                        "object_type": obj.object_type,
+                        "x": ox,
+                        "y": oy,
+                        "passable": obj.passable,
+                    })
+
+        difficult = [
+            {"x": x, "y": y}
+            for (x, y, dz) in self.difficult_terrain
+            if dz == z
+        ]
+
+        return {
+            "name": self.name,
+            "width": self.width,
+            "height": self.height,
+            "cell_size": self.cell_size,
+            "creatures": creatures,
+            "objects": objects,
+            "difficult_terrain": difficult,
+        }
+
     def __repr__(self):
         n_obj = sum(len(v) for v in self._objects.values())
         return (

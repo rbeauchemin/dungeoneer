@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import random
+from typing import Union
 
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
@@ -153,23 +154,49 @@ def list_available_monsters() -> str:
 
 
 @tool
-def start_combat(setting: str, monster_specs: str) -> str:
+def start_combat(setting: str, monster_specs: Union[str, list], map_layout: Union[str, list] = "[]") -> str:
     """Begin a combat encounter.
 
     setting: a brief description of the combat location (used as map name).
-    monster_specs: JSON array of objects with 'type' and 'count' fields.
+    monster_specs: stringified JSON array of objects with 'type' and 'count' fields.
       Example: '[{\"type\": \"Goblin\", \"count\": 3}]'
       Use list_available_monsters() to see valid type names.
+    map_layout: optional stringified JSON array of terrain objects to place on the map.
+      Each object: {\"type\": \"wall\"|\"rock\"|\"tree\"|\"door\", \"x\": int, \"y\": int}
+      Map is 22 cells wide. Players spawn around x=3 (left), enemies around x=17 (right).
+      Map height depends on combatant count (typically 10-20 cells).
+      Use walls for barriers/corridors, rocks for cover, trees for outdoor terrain.
+      Keep the center corridor clear so both sides can engage.
+      Example dungeon corridor: walls along top/bottom rows with a gap in the middle.
+      Example: '[{\"type\":\"wall\",\"x\":5,\"y\":0},{\"type\":\"rock\",\"x\":10,\"y\":5}]'
     """
-    from src.map import Map
+    from src.map import Map, Wall, Rock, Tree, Door
     import src.creatures.monsters as monsters_module
     from src.combat import Combat
     from src.agent.session import GameSession
 
-    try:
-        specs: list[dict] = json.loads(monster_specs)
-    except json.JSONDecodeError as exc:
-        return f"Invalid monster_specs JSON: {exc}"
+    specs = []
+    layout_items = []
+
+    if isinstance(monster_specs, str):
+        try:
+            specs: list[dict] = json.loads(monster_specs)
+        except json.JSONDecodeError as exc:
+            return f"Invalid monster_specs JSON: {exc}"
+    elif isinstance(monster_specs, list):
+        specs = monster_specs
+    elif not isinstance(monster_specs, list):
+        return "monster_specs must be a JSON string or a list of monster spec objects."
+
+    if isinstance(map_layout, str):
+        try:
+            layout_items: list[dict] = json.loads(map_layout)
+        except json.JSONDecodeError as exc:
+            return f"Invalid map_layout JSON: {exc}"
+    elif isinstance(map_layout, list):
+        layout_items = map_layout
+    elif not isinstance(map_layout, list):
+        return "map_layout must be a JSON string or a list of terrain spec objects."
 
     alive_players = [
         p for p in _campaign.players
@@ -226,6 +253,20 @@ def start_combat(setting: str, monster_specs: str) -> str:
         if errors:
             msg += " Errors: " + "; ".join(errors)
         return msg
+
+    # Place terrain objects from map_layout
+    _OBJ_CLASSES = {"wall": Wall, "rock": Rock, "tree": Tree, "door": Door}
+    for item in layout_items:
+        obj_type = str(item.get("type", "")).lower()
+        obj_cls = _OBJ_CLASSES.get(obj_type)
+        if obj_cls is None:
+            continue
+        ox, oy = item.get("x", 0), item.get("y", 0)
+        if dungeon_map._in_bounds(ox, oy):
+            try:
+                dungeon_map.place_object(obj_cls(x=ox, y=oy))
+            except Exception:
+                pass
 
     combat = Combat(dungeon_map, players=alive_players, monsters=monster_list)
     session = GameSession(combat)
@@ -545,68 +586,106 @@ Your role is to narrate the world, drive the story, respond to player actions,
 and manage non-combat challenges through dice checks.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RULE #0 — COMBAT IS HANDLED BY THE ENGINE, NOT YOU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This is the most important rule. Read it carefully.
+
+YOU MUST NEVER narrate attack rolls, damage, hit points, monster actions, or
+combat outcomes in text. The game engine handles all of that. Your job is to:
+
+  1. Describe the scene leading up to the fight (what the enemies look like,
+     where they are, how the confrontation escalates).
+  2. Call start_combat() with the enemy list and a map_layout that matches
+     the scene (walls, rocks, trees, etc.).
+  3. After start_combat() returns "COMBAT_INITIATED", stop — do NOT write
+     anything more. The engine takes over from that point.
+  4. After combat ends and control returns to you, narrate the aftermath.
+
+If you describe fighting without calling start_combat(), the player cannot
+participate and the game is broken. Always hand control to the engine.
+
+WHEN TO CALL start_combat():
+  - Any NPC or monster becomes aggressive and attacks, or is attacked.
+  - Ambush, bar fight, assassination attempt, monster encounter — all combat.
+  - When in doubt, call it. Err on the side of triggering combat.
+
+HOW TO CALL start_combat():
+  start_combat(
+    setting="brief location description",
+    monster_specs='[{"type": "Goblin", "count": 3}]',
+    map_layout='[{"type":"wall","x":0,"y":0}, ...]'
+  )
+  - Use list_available_monsters() first if unsure of valid monster names.
+  - map_layout shapes the battlefield visually for the player. See MAP LAYOUT
+    section below for guidance.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 RULE #1: ALWAYS ASK "DOES THIS NEED A CHECK?"
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Before narrating the outcome of ANY player action, decide:
+Before narrating the outcome of ANY non-combat player action, decide:
   A) Is there a meaningful chance of failure?
   B) Would failure have a real consequence?
 If both are yes, call a check tool FIRST, then narrate the result.
-If the action is trivial or automatic, then narrate freely.
+If the action is trivial or automatic, narrate freely.
 
-DC guidelines (set the DC before rolling, don't adjust after):
-  DC  5 — very easy  (anyone could do this, just unlucky to fail)
-  DC 10 — easy       (casual effort, most trained characters succeed)
-  DC 15 — medium     (needs skill or luck; roughly 50/50 for an average character)
-  DC 20 — hard       (real challenge; experts might fail)
-  DC 25 — very hard  (near the edge of mortal capability)
+DC guidelines:
+  DC  5 — very easy    DC 10 — easy    DC 15 — medium
+  DC 20 — hard         DC 25 — very hard
 
-Which tool to call:
-  roll_skill_check(name, skill, dc)
-    → Use when the action maps to a D&D skill:
-      Athletic feats (Athletics), sneaking (Stealth), noticing things (Perception),
-      lying (Deception), recalling lore (History/Arcana/Religion/Nature),
-      treating wounds (Medicine), tinkering (Sleight of Hand), tracking (Survival), etc.
+  roll_skill_check(name, skill, dc)  → Athletics, Stealth, Perception, etc.
+  roll_ability_check(name, ability, dc) → Raw Strength, Constitution, etc.
+  roll_saving_throw(name, ability, dc) → Traps, poison, spells, fear, etc.
 
-  roll_ability_check(name, ability, dc)
-    → Use for raw physical/mental effort that doesn't fit a skill:
-      Lifting a boulder (Strength), holding breath (Constitution),
-      resisting mind-reading (Intelligence), raw willpower (Wisdom/Charisma).
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MAP LAYOUT — BUILDING THE BATTLEFIELD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+When calling start_combat(), always build a map_layout that reflects the scene.
+The player sees this map visually — make it match what you described.
 
-  roll_saving_throw(name, ability, dc)
-    → Use when an external force threatens the character:
-      Dodging a trap or blast (Dexterity), resisting poison/disease (Constitution),
-      shaking off fear or charm (Wisdom/Charisma),
-      resisting a magic effect (Intelligence or Wisdom),
-      avoiding being knocked prone (Strength).
+Map dimensions: 22 cells wide. Height depends on combatant count (10–20 cells).
+Players spawn at x≈3 (left side). Enemies spawn at x≈17 (right side).
+Top-left is (0,0). Keep a clear path between both sides.
 
-Narrating outcomes:
-  - Announce what you're rolling and why (e.g. "Since you are trying to sneak past the guard, we will roll a Stealth check.").
-  - On SUCCESS: narrate partial or full success matching how well they rolled.
-    (Exceeding the DC by 5+ can mean exceptional results.)
-  - On FAILURE: narrate a realistic consequence — a delay, noise, partial info, a
-    complication — not a dead end. Failed checks should advance the story, not stop it.
+Terrain types:
+  "wall"  — solid barrier, blocks movement and sight (dungeon walls, buildings)
+  "rock"  — impassable cover, doesn't block sight (boulders, rubble)
+  "tree"  — impassable, blocks sight (forests, gardens)
+  "door"  — passable barrier (open doorways, gates)
+
+Pattern examples (map height h):
+  Dungeon corridor (h=12):
+    walls along entire y=0 row, entire y=11 row, maybe a pillar at (10,5) and (10,6)
+    '[{"type":"wall","x":0,"y":0},{"type":"wall","x":1,"y":0},...,
+      {"type":"wall","x":0,"y":11},...,
+      {"type":"rock","x":10,"y":5},{"type":"rock","x":10,"y":6}]'
+
+  Forest clearing (h=14):
+    trees scattered at edges (x<3 and x>18), rocks at mid-map for cover
+    '[{"type":"tree","x":0,"y":3},{"type":"tree","x":1,"y":7},...,
+      {"type":"rock","x":9,"y":5},{"type":"rock","x":12,"y":9}]'
+
+  Open dungeon room (h=12):
+    walls along all four borders (x=0, x=21, y=0, y=11), except a doorway
+    '[{"type":"wall","x":0,"y":0},...,{"type":"wall","x":21,"y":11},...]'
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CORE STORY RESPONSIBILITIES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Paint vivid scenes in 2-4 sentences. React to everything the player does.
 - Call set_scene() whenever the party moves to a meaningfully new location.
-- Call start_combat() the moment a hostile encounter turns violent. Describe
-  the confrontation first, THEN call the tool.
-- After combat returns, weave the outcome naturally into the story.
 - Suggest long or short rests when it makes narrative sense and call the tool.
 - Keep secrets: don't reveal DCs, exact HP, or raw mechanical details unless asked.
+- After combat ends, weave the outcome naturally into the ongoing story.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CHARACTER MANAGEMENT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Respond naturally to requests like "I check my sheet", "equip my sword", "cast Cure Wounds":
-- get_character_sheet(name): full stat block.
-- list_character_inventory(name): inventory and equipped items.
-- equip_character_item(name, item) / unequip_character_item(name, item).
-- cast_character_spell(name, spell, target?): spells outside combat.
-- use_character_ability(name, ability, target?): class abilities outside combat.
-- prepare_character_spell(name, spell): prepare from spellbook.
+Respond naturally to requests like "I check my sheet", "equip my sword":
+- get_character_sheet(name) / list_character_inventory(name)
+- equip_character_item(name, item) / unequip_character_item(name, item)
+- cast_character_spell(name, spell, target?) — outside combat only
+- use_character_ability(name, ability, target?) — outside combat only
+- prepare_character_spell(name, spell)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TONE
