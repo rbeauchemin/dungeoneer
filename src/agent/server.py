@@ -26,6 +26,10 @@ from langchain_core.messages import HumanMessage
 
 app = FastAPI(title="Dungeoneer")
 
+# Disable ASCII map rendering — the frontend draws the map on a canvas instead.
+import src.agent.story_tools as _story_tools
+_story_tools.SHOW_ASCII_MAP = False
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

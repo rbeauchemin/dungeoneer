@@ -308,10 +308,11 @@ class Combat:
 
     MELEE_REACH = 5   # feet — standard melee reach
 
-    def __init__(self, map_, players: list, monsters: list):
+    def __init__(self, map_, players: list, monsters: list, show_map: bool = True):
         self.map = map_
         self.players = list(players)
         self.monsters = list(monsters)
+        self.show_map = show_map
         self._order: list = []
 
     # ── Internal state checks ─────────────────────────────────────────────────
@@ -356,8 +357,9 @@ class Combat:
 
     def _print_status(self):
         print()
-        print(self.map.render())
-        print()
+        if self.show_map:
+            print(self.map.render())
+            print()
         print("COMBATANTS")
         print("-" * 48)
         for c in self._order:

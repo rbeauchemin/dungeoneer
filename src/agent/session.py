@@ -28,8 +28,9 @@ from typing import Optional
 class GameSession:
     """Drives a ``Combat`` instance programmatically via a background thread."""
 
-    def __init__(self, combat) -> None:
+    def __init__(self, combat, show_map: bool = True) -> None:
         self.combat = combat
+        self.combat.show_map = show_map
         self.winner: Optional[str] = None
 
         self._cmd_q: queue.Queue[str] = queue.Queue()

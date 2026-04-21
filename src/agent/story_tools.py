@@ -17,19 +17,73 @@ from langgraph.prebuilt import create_react_agent
 from src.agent.campaign import _campaign
 from src.creatures.character import Character
 
-# Monsters available for random encounters (subset with friendly names)
-_MONSTER_REGISTRY: dict[str, str] = {
-    "Goblin": "Goblin",
-    "Skeleton": "Skeleton",
-    "Orc": "Orc",
-    "Zombie": "Zombie",
-    "Wolf": "Wolf",
-    "Giant Spider": "GiantSpider",
-    "Bandit": "Bandit",
-    "Troll": "Troll",
-    "Vampire Spawn": "VampireSpawn",
-    "Animated Armor": "AnimatedArmor",
-}
+# Set to False by the API server so ASCII map output is suppressed during combat
+# (the frontend renders the map visually). Left True for the CLI shell interface.
+SHOW_ASCII_MAP: bool = True
+
+
+def _build_monster_registry() -> dict[str, str]:
+    """Build display-name → class-name mapping from every Monster subclass in monsters.py."""
+    from src.creatures.monsters import get_monsters, Monster, NPC
+    registry = {}
+    for class_name, cls in get_monsters():
+        if cls in (Monster, NPC):
+            continue
+        try:
+            instance = cls()
+            registry[instance.name] = class_name
+        except Exception:
+            pass
+    return registry
+
+
+# Maps friendly display name → class name for every monster defined in monsters.py
+_MONSTER_REGISTRY: dict[str, str] = _build_monster_registry()
+
+
+def _fuzzy_match_monster(type_name: str) -> str | None:
+    """Return the best-matching registry key for type_name, or None if nothing fits.
+
+    Matching priority:
+      1. Exact match (case-insensitive)
+      2. Every word in a registry key appears in type_name  (e.g. "Giant Cave Spider" → "Giant Spider")
+      3. Any single registry key word appears in type_name  (e.g. "Cave Troll" → "Troll")
+      4. type_name word appears in a registry key           (e.g. "Goblin Shaman" → "Goblin")
+    Within each tier, prefer longer registry keys (more specific match).
+    """
+    needle = type_name.lower()
+    needle_words = set(needle.split())
+
+    # Tier 1 — exact (case-insensitive)
+    for key in _MONSTER_REGISTRY:
+        if key.lower() == needle:
+            return key
+
+    # Tier 2 — all words of a registry key appear in the query
+    tier2 = [
+        key for key in _MONSTER_REGISTRY
+        if all(w in needle_words for w in key.lower().split())
+    ]
+    if tier2:
+        return max(tier2, key=len)  # longest = most specific
+
+    # Tier 3 — any single registry-key word matches a query word
+    tier3 = [
+        key for key in _MONSTER_REGISTRY
+        if any(w in needle_words for w in key.lower().split())
+    ]
+    if tier3:
+        return max(tier3, key=len)
+
+    # Tier 4 — any query word is a substring of a registry key
+    tier4 = [
+        key for key in _MONSTER_REGISTRY
+        if any(w in key.lower() for w in needle_words)
+    ]
+    if tier4:
+        return max(tier4, key=len)
+
+    return None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -158,9 +212,13 @@ def start_combat(setting: str, monster_specs: Union[str, list], map_layout: Unio
     """Begin a combat encounter.
 
     setting: a brief description of the combat location (used as map name).
-    monster_specs: stringified JSON array of objects with 'type' and 'count' fields.
-      Example: '[{\"type\": \"Goblin\", \"count\": 3}]'
-      Use list_available_monsters() to see valid type names.
+    monster_specs: stringified JSON array of objects with 'type', optional 'count', and optional 'name' fields.
+      'type' is matched fuzzily against the monster registry — use the closest monster type that fits
+        the creature described in the story (e.g. "Cave Troll" → Troll, "Goblin Shaman" → Goblin).
+      'name' overrides the in-game display name with the story name (character name or flavored label).
+        If omitted the registry type name is used. For groups, name becomes "Name 1", "Name 2", etc.
+      Example: '[{\"type\": \"Goblin\", \"count\": 3, \"name\": \"Sewer Goblin\"},
+                 {\"type\": \"Troll\", \"count\": 1, \"name\": \"Grak the Cave Troll\"}]'
     map_layout: optional stringified JSON array of terrain objects to place on the map.
       Each object: {\"type\": \"wall\"|\"rock\"|\"tree\"|\"door\", \"x\": int, \"y\": int}
       Map is 22 cells wide. Players spawn around x=3 (left), enemies around x=17 (right).
@@ -227,9 +285,13 @@ def start_combat(setting: str, monster_specs: Union[str, list], map_layout: Unio
     for spec in specs:
         type_name = spec.get("type", "")
         count = spec.get("count", 1)
-        class_name = _MONSTER_REGISTRY.get(type_name)
+        story_name = spec.get("name", "")  # optional story/character name
+
+        # Exact match first, then fuzzy fallback
+        matched_key = _MONSTER_REGISTRY.get(type_name) and type_name or _fuzzy_match_monster(type_name)
+        class_name = _MONSTER_REGISTRY.get(matched_key) if matched_key else None
         if class_name is None:
-            errors.append(f"Unknown monster type '{type_name}'")
+            errors.append(f"Unknown monster type '{type_name}' — no close match found in registry")
             continue
 
         monster_cls = getattr(monsters_module, class_name, None)
@@ -237,10 +299,12 @@ def start_combat(setting: str, monster_specs: Union[str, list], map_layout: Unio
             errors.append(f"Monster class '{class_name}' not found in monsters module")
             continue
 
+        # Decide display name: story_name > matched_key; suffix index when spawning multiples
+        base_name = story_name if story_name else matched_key
+
         for j in range(count):
-            m = monster_cls()
-            if count > 1:
-                m.name = f"{type_name} {j + 1}"
+            display_name = f"{base_name} {j + 1}" if count > 1 else base_name
+            m = monster_cls(name=display_name)
             mx = mx_base + (monster_idx % 2)
             my = mid_y - (count - 1) + monster_idx * 2
             my = max(1, min(my, map_height - 2))
@@ -269,7 +333,7 @@ def start_combat(setting: str, monster_specs: Union[str, list], map_layout: Unio
                 pass
 
     combat = Combat(dungeon_map, players=alive_players, monsters=monster_list)
-    session = GameSession(combat)
+    session = GameSession(combat, show_map=SHOW_ASCII_MAP)
     _campaign.active_combat = session
     _campaign.combat_setting = setting
 
@@ -612,10 +676,17 @@ WHEN TO CALL start_combat():
 HOW TO CALL start_combat():
   start_combat(
     setting="brief location description",
-    monster_specs='[{"type": "Goblin", "count": 3}]',
+    monster_specs='[{"type": "Goblin", "count": 3, "name": "Sewer Goblin"},
+                   {"type": "Troll", "count": 1, "name": "Krag the Tunnel Troll"}]',
     map_layout='[{"type":"wall","x":0,"y":0}, ...]'
   )
-  - Use list_available_monsters() first if unsure of valid monster names.
+  - "type" picks the stat block. Use the closest monster type that fits (e.g. a
+    "Goblin Shaman" uses type "Goblin"; a "Cave Troll" uses type "Troll"). The
+    engine matches fuzzily — you don't need an exact registry name.
+  - "name" is the in-game display name shown on the map and combat log. Use the
+    creature's story name or a flavored label. If omitted, the registry type name
+    is used. For groups, names become "Sewer Goblin 1", "Sewer Goblin 2", etc.
+  - Use list_available_monsters() if you want to browse available stat blocks.
   - map_layout shapes the battlefield visually for the player. See MAP LAYOUT
     section below for guidance.
 
