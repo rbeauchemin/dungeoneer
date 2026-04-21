@@ -103,6 +103,7 @@
       border-left: 3px solid transparent;
       transition: background 0.12s, border-color 0.12s;
       user-select: none;
+      position: relative;
     }
 
     .campaign-pill:hover { background: var(--pill-hover); }
@@ -120,9 +121,103 @@
       overflow: hidden;
       text-overflow: ellipsis;
       margin-bottom: 3px;
+      padding-right: 22px; /* room for delete btn */
     }
 
     .campaign-pill.active .pill-name { color: var(--gold); }
+
+    .pill-delete {
+      position: absolute;
+      top: 50%;
+      right: 10px;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px 4px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.12s, color 0.12s;
+      border-radius: 3px;
+    }
+
+    .campaign-pill:hover .pill-delete { opacity: 1; }
+    .pill-delete:hover { color: var(--danger) !important; }
+
+    /* ── Confirmation modal ──────────────────────────────────────────────── */
+
+    #confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #confirm-overlay.visible { display: flex; }
+
+    #confirm-dialog {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 32px;
+      max-width: 360px;
+      width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+
+    #confirm-dialog h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      letter-spacing: 0.1em;
+      color: var(--gold);
+      margin-bottom: 12px;
+    }
+
+    #confirm-dialog p {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    #confirm-dialog p strong { color: #e8dfc0; }
+
+    .confirm-btns {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .confirm-btns button {
+      padding: 8px 20px;
+      border-radius: 6px;
+      font-family: 'Cinzel', serif;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    #confirm-cancel-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    #confirm-cancel-btn:hover { border-color: var(--text-dim); color: var(--text); }
+
+    #confirm-delete-btn {
+      background: transparent;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+    }
+
+    #confirm-delete-btn:hover { background: rgba(192,57,43,0.15); }
 
     .pill-meta {
       font-size: 11px;
@@ -600,6 +695,18 @@
   </div>
 </div>
 
+<!-- ── Delete confirmation modal ──────────────────────────────────────────── -->
+<div id="confirm-overlay">
+  <div id="confirm-dialog">
+    <h3>DELETE CAMPAIGN</h3>
+    <p>Are you sure you want to delete <strong id="confirm-campaign-name"></strong>? This cannot be undone.</p>
+    <div class="confirm-btns">
+      <button id="confirm-cancel-btn" onclick="closeDeleteModal()">Cancel</button>
+      <button id="confirm-delete-btn" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
 
@@ -608,6 +715,7 @@
   let messages = {};        // id -> [{role, content, timestamp}]
   let mapStates = {};       // id -> map dict (null when not in combat)
   let sending = false;
+  let pendingDeleteId = null;
 
   const API = '';  // same origin
 
@@ -668,6 +776,42 @@
     updateMapPanel();
     scrollBottom();
     document.getElementById('user-input').focus();
+  }
+
+  function deleteCampaign(id, event) {
+    event.stopPropagation();
+    pendingDeleteId = id;
+    const name = campaigns[id] ? campaigns[id].name : 'this campaign';
+    document.getElementById('confirm-campaign-name').textContent = name;
+    document.getElementById('confirm-overlay').classList.add('visible');
+  }
+
+  function closeDeleteModal() {
+    pendingDeleteId = null;
+    document.getElementById('confirm-overlay').classList.remove('visible');
+  }
+
+  async function confirmDelete() {
+    const id = pendingDeleteId;
+    closeDeleteModal();
+    if (!id) return;
+    try {
+      await apiFetch(`/api/campaigns/${id}`, { method: 'DELETE' });
+      delete campaigns[id];
+      delete messages[id];
+      delete mapStates[id];
+      if (activeCampaignId === id) {
+        activeCampaignId = null;
+        document.getElementById('main-body').style.display = 'none';
+        document.getElementById('input-bar').style.display = 'none';
+        document.getElementById('no-campaign').style.display = '';
+        document.getElementById('chat-title').textContent = 'Select a campaign';
+        document.getElementById('phase-badge').style.display = 'none';
+      }
+      renderSidebar();
+    } catch (e) {
+      alert('Could not delete campaign: ' + e.message);
+    }
   }
 
   async function sendMessage() {
@@ -751,6 +895,7 @@
             <span>${date}</span>
             <span>${c.message_count} msg${c.message_count !== 1 ? 's' : ''}</span>
           </div>
+          <button class="pill-delete" onclick="deleteCampaign('${c.id}', event)" title="Delete campaign">×</button>
         </div>
       `;
     }).join('');
@@ -970,6 +1115,11 @@
     });
 
     input.addEventListener('input', () => autoResize(input));
+
+    document.getElementById('confirm-overlay').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeDeleteModal();
+    });
+
     boot();
   });
 

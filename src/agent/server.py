@@ -119,7 +119,7 @@ def _persist(record: _CampaignRecord) -> None:
     path = _SAVE_DIR / f"{record.id}.pkl"
     try:
         with open(path, "wb") as fh:
-            pickle.dump(data, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(data, fh)
     except Exception:
         log.exception("Failed to persist campaign %s", record.id)
 
@@ -246,6 +246,19 @@ def list_campaigns():
         _summary(r)
         for r in sorted(_campaigns.values(), key=lambda r: r.created_at)
     ]
+
+
+@app.delete("/api/campaigns/{campaign_id}")
+def delete_campaign(campaign_id: str):
+    """Delete a campaign from memory and disk."""
+    _get(campaign_id)  # raises 404 if not found
+    del _campaigns[campaign_id]
+    path = _SAVE_DIR / f"{campaign_id}.pkl"
+    try:
+        path.unlink(missing_ok=True)
+    except Exception:
+        log.exception("Failed to delete campaign file %s", path)
+    return {"ok": True}
 
 
 @app.get("/api/campaigns/{campaign_id}/messages")
