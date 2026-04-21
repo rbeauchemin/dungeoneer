@@ -1257,6 +1257,11 @@ class Combat:
                     print("\nAll players have died. The monsters win." if all_dead
                           else "\nAll players are down. The monsters win.")
                     winner = "monsters"
+                    # reset saves for downed players so they don't carry over to the next round
+                    for p in self._alive_players():
+                        p.death_saves_success = 0
+                        p.death_saves_failure = 0
+                        p.current_hp = max(1, p.current_hp)  # just for display purposes, since they're unconscious
                     break
 
                 if not self._alive_monsters():

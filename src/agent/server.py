@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
-import pickle
+import cloudpickle as pickle
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -475,16 +475,27 @@ def _begin_combat(record: _CampaignRecord) -> str:
 
 def _handle_combat(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
+    from src.agent.tools import set_session
     from src.combat import _is_dead
 
     session = record.combat_session
+    # Ensure tools point at the right session (defensive — handles edge cases
+    # where set_session wasn't called yet for this request).
+    set_session(session)
+
     state = session.get_state_description()
 
-    record.combat_messages.append(HumanMessage(
-        content=f"Current state:\n{state}\n\nInstruction: {user_input}"
-    ))
-    result = record.combat_agent.invoke({"messages": record.combat_messages})
-    record.combat_messages = result["messages"]
+    # Each API request is a self-contained translation task: current state +
+    # player instruction → game commands → narrative.  We do NOT accumulate
+    # combat_messages across turns because the growing tool-call history causes
+    # LangGraph's recursion counter to exceed its limit on the second request.
+    turn_messages = [HumanMessage(
+        content=f"Current combat state:\n{state}\n\nPlayer instruction: {user_input}"
+    )]
+    result = record.combat_agent.invoke(
+        {"messages": turn_messages},
+        config={"recursion_limit": 50},
+    )
     reply = result["messages"][-1].content
 
     leftover = session._take_output()
