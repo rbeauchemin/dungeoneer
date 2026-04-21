@@ -11,8 +11,10 @@ Requires ANTHROPIC_API_KEY in the environment or a .env file.
 
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
+import pickle
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -23,6 +25,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
+
+log = logging.getLogger(__name__)
 
 app = FastAPI(title="Dungeoneer")
 
@@ -85,6 +89,81 @@ class _CampaignRecord:
 
 
 _campaigns: dict[str, _CampaignRecord] = {}
+_SAVE_DIR = pathlib.Path(__file__).parent.parent.parent / "campaigns"
+_disk_loaded = False  # lazy-load flag; campaigns are scanned once on first list call
+
+
+# ── Persistence ────────────────────────────────────────────────────────────────
+
+def _persist(record: _CampaignRecord) -> None:
+    """Pickle campaign state to disk after every message so restarts are safe."""
+    _SAVE_DIR.mkdir(exist_ok=True)
+    # If we're mid-combat the thread can't be restored, so rewind to story phase.
+    save_phase = "story" if record.phase == "combat" else record.phase
+    data = {
+        "id": record.id,
+        "name": record.name,
+        "created_at": record.created_at,
+        "phase": save_phase,
+        "display_messages": record.display_messages,
+        "creation_messages": record.creation_messages,
+        "story_messages": record.story_messages,
+        "players": record.players,
+        "pending_character": record.pending_character,
+        "setting_brief": record.setting_brief,
+        "current_scene": record.current_scene,
+        "story_log": record.story_log,
+        "last_combat_result": record.last_combat_result,
+        "combat_setting": record.combat_setting,
+    }
+    path = _SAVE_DIR / f"{record.id}.pkl"
+    try:
+        with open(path, "wb") as fh:
+            pickle.dump(data, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        log.exception("Failed to persist campaign %s", record.id)
+
+
+def _restore_from_disk(path: pathlib.Path) -> _CampaignRecord | None:
+    """Load a pickled campaign snapshot and return a usable _CampaignRecord.
+
+    Agents are *not* recreated here — they are built lazily the next time the
+    campaign receives a message, keeping startup fast.
+    """
+    try:
+        with open(path, "rb") as fh:
+            data = pickle.load(fh)
+    except Exception:
+        log.exception("Failed to load campaign from %s", path)
+        return None
+
+    record = _CampaignRecord(id=data["id"])
+    record.name = data.get("name", "Campaign")
+    record.created_at = data.get("created_at", datetime.now().isoformat())
+    record.phase = data.get("phase", "setting")
+    record.display_messages = data.get("display_messages", [])
+    record.creation_messages = data.get("creation_messages", [])
+    record.story_messages = data.get("story_messages", [])
+    record.players = data.get("players", [])
+    record.pending_character = data.get("pending_character")
+    record.setting_brief = data.get("setting_brief", "")
+    record.current_scene = data.get("current_scene", "An unknown location.")
+    record.story_log = data.get("story_log", [])
+    record.last_combat_result = data.get("last_combat_result", "")
+    record.combat_setting = data.get("combat_setting", "")
+    return record
+
+
+def _load_saved_campaigns() -> None:
+    """Scan the save directory and register any campaigns not already in memory."""
+    if not _SAVE_DIR.exists():
+        return
+    for path in sorted(_SAVE_DIR.glob("*.pkl")):
+        cid = path.stem
+        if cid not in _campaigns:
+            record = _restore_from_disk(path)
+            if record is not None:
+                _campaigns[cid] = record
 
 
 # ── Global state helpers ───────────────────────────────────────────────────────
@@ -159,6 +238,10 @@ def create_campaign():
 @app.get("/api/campaigns")
 def list_campaigns():
     """Return all campaigns sorted by creation time."""
+    global _disk_loaded
+    if not _disk_loaded:
+        _load_saved_campaigns()
+        _disk_loaded = True
     return [
         _summary(r)
         for r in sorted(_campaigns.values(), key=lambda r: r.created_at)
@@ -193,6 +276,7 @@ def send_message(campaign_id: str, body: _SendBody):
 
     assistant_msg = _msg("assistant", reply)
     record.display_messages.append(assistant_msg)
+    _persist(record)
 
     # Include map state whenever a combat session is active
     map_data = None
@@ -248,7 +332,11 @@ def _handle_setting(record: _CampaignRecord, user_input: str) -> str:
 
 def _handle_creation(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
-    from src.agent.creation import finalize_character
+    from src.agent.creation import create_creation_agent, finalize_character
+
+    # Recreate agent if it was lost across a server restart
+    if record.creation_agent is None:
+        record.creation_agent = create_creation_agent(model=_model())
 
     # Check whether creation completed during the *previous* turn
     char = _campaign.pending_character
@@ -328,7 +416,12 @@ def _has_combat_language(text: str) -> bool:
 
 def _handle_story(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
+    from src.agent.story_tools import create_story_agent
     from langchain_core.messages import ToolMessage
+
+    # Recreate agent if it was lost across a server restart
+    if record.story_agent is None:
+        record.story_agent = create_story_agent(model=_model())
 
     record.story_messages.append(HumanMessage(content=user_input))
     result = record.story_agent.invoke({"messages": record.story_messages})
