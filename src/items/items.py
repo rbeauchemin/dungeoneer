@@ -14,12 +14,12 @@ class Item():
         self.quantity = kwargs.get("quantity", 1)
         # Can be Common, Uncommon, Rare, Legendary
 
-    def purchase(self, character: Character, quantity: int = 1):
+    def purchase(self, character: Character, quantity: int = 1, cost_multiplier: float = 1.0):
         if "Discount" in character.special_traits and not self.magical:
             value = round(self.value * 0.8)
         else:
             value = self.value
-        value = value * quantity
+        value = value * quantity * cost_multiplier
         if character.gold >= value:
             character.gold -= value
             character.add_item(self, purchasing=False, quantity=quantity)

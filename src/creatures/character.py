@@ -334,7 +334,7 @@ class Character:
                 active_effect.remove(self)
                 break
 
-    def add_item(self, item, purchasing=False, quantity: int = 1):
+    def add_item(self, item, purchasing=False, quantity: int = 1, cost_multiplier: float = 1.0):
         if isinstance(item, list):
             for i in item:
                 self.add_item(i)
@@ -347,7 +347,7 @@ class Character:
         else:
             item_object = item
         if purchasing:
-            item_object.purchase(self, quantity=quantity)
+            item_object.purchase(self, quantity=quantity, cost_multiplier=cost_multiplier)
         else:
             # check existing items
             for i in self.inventory:

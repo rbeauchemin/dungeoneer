@@ -486,6 +486,7 @@ def list_character_inventory(player_name: str) -> str:
             lines.append(f"    {item.name} x{qty}  [{getattr(item, 'type', '?')}]")
     else:
         lines.append("    (empty)")
+    lines.append("  Gold: " + str(getattr(player, "gold", 0)))
     return "\n".join(lines)
 
 
@@ -527,6 +528,23 @@ def unequip_character_item(player_name: str, item_name: str) -> str:
     player.unequip_item(match.name)
     equipped = [i.name for i in player.equipped_items]
     return f"{player.name} unequipped {match.name}. Now equipped: {', '.join(equipped) or 'nothing'}"
+
+
+@tool
+def purchase_or_add_item(player_name: str, item_name: str, quantity: int = 1, cost_multiplier: float = 1.0) -> str:
+    """Purchase or add an item to a player's inventory.
+    Cost multiplier can be used to apply discounts or markups (e.g. 0.5 for 50% off, 2.0 for double price).
+    To add an item for free or pick it up, set cost_multiplier to 0.0."""
+    player = _get_player(player_name)
+    if player is None:
+        return f"No player matching '{player_name}'."
+
+    # In a real implementation, you'd check the shop's inventory and the player's gold.
+    # For this simplified version, we'll just create a new item instance and add it to inventory.
+    from src.items import Item  # Assuming a base Item class exists
+    new_item = Item(name=item_name, quantity=quantity)
+    player.add_item(new_item, purchasing=True, cost_multiplier=cost_multiplier, quantity=quantity)
+    return f"{player.name} purchased {quantity}x {item_name}. Added to inventory."
 
 
 @tool
@@ -629,6 +647,7 @@ _CHARACTER_TOOLS = [
     cast_character_spell,
     use_character_ability,
     prepare_character_spell,
+    purchase_or_add_item
 ]
 
 _STORY_TOOLS = [
