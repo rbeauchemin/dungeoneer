@@ -74,7 +74,6 @@ class _CampaignRecord:
 
     creation_agent: object = None
     story_agent: object = None
-    combat_agent: object = None
     combat_session: object = None
 
     # Snapshot of _campaign singleton fields
@@ -431,9 +430,11 @@ def _handle_story(record: _CampaignRecord, user_input: str) -> str:
         record.story_agent = create_story_agent(model=_model())
 
     record.story_messages.append(HumanMessage(content=user_input))
+    prev_len = len(record.story_messages)
     result = record.story_agent.invoke({"messages": record.story_messages})
     record.story_messages = result["messages"]
     reply = result["messages"][-1].content
+    new_messages = result["messages"][prev_len:]
 
     # If the reply describes combat but start_combat() was not called, nudge the agent
     # once to make the tool call it forgot.
@@ -451,7 +452,7 @@ def _handle_story(record: _CampaignRecord, user_input: str) -> str:
         reply += "\n\n" + _begin_combat(record)
     else:
         # Surface any tool errors so the player can see what went wrong
-        for m in result["messages"]:
+        for m in new_messages:
             if isinstance(m, ToolMessage) and "COMBAT_INITIATED" not in (m.content or ""):
                 if hasattr(m, "name") and m.name == "start_combat":
                     reply += (
@@ -467,7 +468,6 @@ def _begin_combat(record: _CampaignRecord) -> str:
     """Transition to combat phase and return the combat intro text."""
     from src.agent.campaign import _campaign
     from src.agent.tools import set_session
-    from src.agent.graph import create_agent as _create_combat_agent
 
     session = _campaign.active_combat
     _campaign.active_combat = None
@@ -475,8 +475,6 @@ def _begin_combat(record: _CampaignRecord) -> str:
     record.phase = "combat"
 
     set_session(session)
-    record.combat_agent = _create_combat_agent(model=_model())
-    record.combat_messages = []
 
     initial_output = session.start()
     lines = [f"⚔ **Combat: {_campaign.combat_setting}**"]
@@ -488,32 +486,15 @@ def _begin_combat(record: _CampaignRecord) -> str:
 
 def _handle_combat(record: _CampaignRecord, user_input: str) -> str:
     from src.agent.campaign import _campaign
-    from src.agent.tools import set_session
     from src.combat import _is_dead
 
     session = record.combat_session
-    # Ensure tools point at the right session (defensive — handles edge cases
-    # where set_session wasn't called yet for this request).
-    set_session(session)
 
-    state = session.get_state_description()
-
-    # Each API request is a self-contained translation task: current state +
-    # player instruction → game commands → narrative.  We do NOT accumulate
-    # combat_messages across turns because the growing tool-call history causes
-    # LangGraph's recursion counter to exceed its limit on the second request.
-    turn_messages = [HumanMessage(
-        content=f"Current combat state:\n{state}\n\nPlayer instruction: {user_input}"
-    )]
-    result = record.combat_agent.invoke(
-        {"messages": turn_messages},
-        config={"recursion_limit": 50},
-    )
-    reply = result["messages"][-1].content
-
+    # Pass the player's input directly to the game engine — no LLM translation loop.
+    mechanical = session.send(user_input)
     leftover = session._take_output()
     if leftover.strip():
-        reply += f"\n\n{leftover.strip()}"
+        mechanical += f"\n\n{leftover.strip()}"
 
     if session.is_game_over:
         winner = session.winner or "unknown"
@@ -529,15 +510,18 @@ def _handle_combat(record: _CampaignRecord, user_input: str) -> str:
         record.phase = "story"
 
         followup = HumanMessage(
-            content=f"The combat has ended. Result: {combat_result}. Continue the story."
+            content=(
+                f"[COMBAT ENDED] Result: {combat_result}\n"
+                f"Last turn: {mechanical}\n\n"
+                f"Narrate the end of the battle and continue the story."
+            )
         )
         record.story_messages.append(followup)
-        result = record.story_agent.invoke({"messages": record.story_messages})
-        record.story_messages = result["messages"]
-        story_reply = result["messages"][-1].content
-        reply += f"\n\n---\n\n{story_reply}"
+        result2 = record.story_agent.invoke({"messages": record.story_messages})
+        record.story_messages = result2["messages"]
+        return result2["messages"][-1].content
 
-    return reply
+    return mechanical
 
 
 # ── Frontend ───────────────────────────────────────────────────────────────────

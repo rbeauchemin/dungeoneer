@@ -51,7 +51,7 @@ def move_toward(target_name: str) -> str:
     """Move toward a named enemy or destination using pathfinding.
     Useful when you don't know the exact coordinates.
     Example: move_toward("goblin")"""
-    return _s().send(f"move {target_name}")
+    return _s().send(f'move "{target_name}"')
 
 
 @tool
@@ -59,9 +59,9 @@ def attack(target_name: str, weapon_name: Optional[str] = None) -> str:
     """Make a weapon attack against a named enemy.
     Optionally specify which weapon to use (default: best available).
     Example: attack("goblin") or attack("goblin a", "longsword")"""
-    cmd = f"attack {target_name}"
+    cmd = f'attack "{target_name}"'
     if weapon_name:
-        cmd += f" {weapon_name}"
+        cmd += f' "{weapon_name}"'
     return _s().send(cmd)
 
 
@@ -70,9 +70,9 @@ def cast_spell(spell_name: str, target_name: Optional[str] = None) -> str:
     """Cast a prepared spell. Most offensive spells require a target.
     Use list_spells() to see what is available.
     Example: cast_spell("fireball", "goblin") or cast_spell("shield")"""
-    cmd = f"cast {spell_name}"
+    cmd = f'cast "{spell_name}"'
     if target_name:
-        cmd += f" {target_name}"
+        cmd += f' "{target_name}"'
     return _s().send(cmd)
 
 
@@ -81,9 +81,9 @@ def use_ability(ability_name: str, target_name: Optional[str] = None) -> str:
     """Use a class special ability (Rage, Second Wind, Action Surge, etc.).
     Use list_abilities() to see what is available and how many uses remain.
     Example: use_ability("rage") or use_ability("second wind")"""
-    cmd = f"ability {ability_name}"
+    cmd = f'ability "{ability_name}"'
     if target_name:
-        cmd += f" {target_name}"
+        cmd += f' "{target_name}"'
     return _s().send(cmd)
 
 

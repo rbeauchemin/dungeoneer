@@ -359,6 +359,9 @@ def take_long_rest() -> str:
             continue
         old_hp = p.current_hp
         p.current_hp = p.max_hp
+        p.remove_condition("Unconscious")
+        p.death_saves["Failed"] = 0
+        p.death_saves["Succeeded"] = 0
 
         # Reset spell slots if present
         if hasattr(p, "spell_slots"):
@@ -386,7 +389,7 @@ def take_short_rest() -> str:
 
     results: list[str] = []
     for p in _campaign.players:
-        if _is_dead(p) or p.current_hp <= 0:
+        if _is_dead(p):
             continue
         hit_die = max(
             (c.hit_dice for c in p.classes),
@@ -397,6 +400,10 @@ def take_short_rest() -> str:
         healed = max(1, roll + con_mod)
         old_hp = p.current_hp
         p.current_hp = min(p.max_hp, p.current_hp + healed)
+        if p.current_hp > 0:
+            p.remove_condition("Unconscious")
+            p.death_saves["Failed"] = 0
+            p.death_saves["Succeeded"] = 0
         results.append(
             f"  {p.name}: rolled d{hit_die}({roll})+{con_mod} = {healed} HP  "
             f"({old_hp} → {p.current_hp})"

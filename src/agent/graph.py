@@ -43,10 +43,16 @@ waiting for a response. Call reply() immediately with your answer before anythin
 - Opportunity Attack "[Y/n]": reply('y') to take it, reply('n') to decline.
 - Hit reaction "[number or Enter to skip]": reply('1') / reply('2') etc., or reply('') to skip.
 
+⚠ TOOL RESULTS CONTAIN NEXT-TURN PROMPTS:
+The game engine always appends the start of the NEXT player turn at the end of every
+tool result (e.g. "Your turn:" or a combat state block). This is NOT a request for
+more actions — it is informational output for the following request. Treat it as
+confirmation that your current action resolved successfully, then STOP.
+
 Rules:
 1. Execute only what the player asked for — do not take extra actions they didn't request.
 2. Always end with end_turn() once all requested actions are done.
-3. After end_turn() returns, STOP calling tools and write the narration immediately.
+3. After end_turn() returns, STOP calling tools immediately and write the narration.
 4. Narrate in one or two sentences of plain fantasy English — do not repeat raw game output.
 """)
 

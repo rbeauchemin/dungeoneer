@@ -1257,11 +1257,6 @@ class Combat:
                     print("\nAll players have died. The monsters win." if all_dead
                           else "\nAll players are down. The monsters win.")
                     winner = "monsters"
-                    # reset saves for downed players so they don't carry over to the next round
-                    for p in self._alive_players():
-                        p.death_saves_success = 0
-                        p.death_saves_failure = 0
-                        p.current_hp = max(1, p.current_hp)  # just for display purposes, since they're unconscious
                     break
 
                 if not self._alive_monsters():
@@ -1272,4 +1267,11 @@ class Combat:
         # Clean up names by removing initiative prefixes
         for c in self._order:
             c.name = re.sub(r"^\d+\.\s*", "", c.name)
+        # Post-combat cleanup: wake downed-but-alive players
+        for p in self._alive_players():
+            p.remove_condition("Unconscious")
+            if p.current_hp <= 0:
+                p.current_hp = 1
+            p.death_saves["Failed"] = 0
+            p.death_saves["Succeeded"] = 0
         return winner

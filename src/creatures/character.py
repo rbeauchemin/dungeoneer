@@ -545,11 +545,11 @@ class Character:
             target.current_hp -= total
         else:
             print("The attack missed!")
-        if target.current_hp < 0 and lethal:
+        if target.current_hp <= 0 and lethal:
             target.current_hp = 0
             target.add_condition("Dead")
-        elif target.current_hp < 0 and not lethal:
-            target.current_hp = 1
+        elif target.current_hp <= 0 and not lethal:
+            target.current_hp = 0
             target.add_condition("Unconscious")
 
     def prepare_spell(self, spell):

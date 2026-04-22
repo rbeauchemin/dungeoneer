@@ -30,9 +30,7 @@ from langchain_core.messages import HumanMessage
 from src.agent.campaign import _campaign
 from src.agent.creation import create_creation_agent
 from src.agent.story_tools import create_story_agent
-from src.agent.graph import create_agent as create_combat_agent
 from src.agent.session import GameSession
-from src.agent.tools import set_session, ALL_TOOLS
 
 
 # ── Utilities ──────────────────────────────────────────────────────────────────
@@ -156,48 +154,35 @@ def run_creation_phase(model: str) -> None:
 
 # ── Phase 3: Combat sub-loop ───────────────────────────────────────────────────
 
-def run_combat_loop(session: GameSession, model: str) -> str:
-    """Drive a full combat encounter to completion.  Returns a result summary."""
-    set_session(session)
-    agent = create_combat_agent(model=model)
-
+def run_combat_loop(session: GameSession) -> str:
+    """Drive a full combat encounter interactively. Returns a result summary."""
     print(f"\n{_hr()}")
     print(f"  ⚔  COMBAT — {_campaign.combat_setting}")
+    print(_hr())
+    print("  Commands: attack <name>  |  move <x> <y>  |  move <name>")
+    print("            cast <spell> [target]  |  ability <name> [target]")
+    print("            dash  |  spells  |  abilities  |  pass (end turn)  |  state")
     print(_hr())
 
     initial_output = session.start()
     if initial_output.strip():
         print(initial_output)
 
-    conv: list = []
-
     while not session.is_game_over:
-        state = session.get_state_description()
-        print(f"\n{_hr('-')}")
-
         user_input = _prompt("Combat")
         if not user_input:
-            user_input = "Take your turn using your best judgment."
+            continue
 
-        conv.append(HumanMessage(
-            content=f"Current state:\n{state}\n\nInstruction: {user_input}"
-        ))
-        result = agent.invoke({"messages": conv})
-        conv = result["messages"]
-
-        print(f"\nAgent: {result['messages'][-1].content}")
-
-        leftover = session._take_output()
-        if leftover.strip():
-            print(leftover)
+        output = session.send(user_input)
+        if output.strip():
+            print(output)
 
     winner = session.winner or "unknown"
-    summary = (
+    return (
         f"The players won the battle against {_campaign.combat_setting}!"
         if winner == "players"
         else f"The party was defeated at {_campaign.combat_setting}."
     )
-    return summary
 
 
 # ── Phase 2: Story / exploration loop ─────────────────────────────────────────
@@ -229,72 +214,90 @@ def run_story_phase(model: str) -> None:
     messages = result["messages"]
     print(f"\nDM: {result['messages'][-1].content}")
 
+    session: Optional[GameSession] = None
+
+    # Helper: enter combat when active_combat is set by the story agent
+    def _enter_combat() -> None:
+        nonlocal session
+        session = _campaign.active_combat
+        _campaign.active_combat = None
+        print(f"\n{_hr()}")
+        print(f"  ⚔  COMBAT — {_campaign.combat_setting}")
+        print(_hr())
+        print("  Commands: attack <name>  |  move <x> <y>  |  move <name>")
+        print("            cast <spell> [target]  |  ability <name> [target]")
+        print("            dash  |  spells  |  abilities  |  pass (end turn)  |  state")
+        print(_hr())
+        initial = session.start()
+        if initial.strip():
+            print(initial)
+
+    # Helper: leave combat and let the story agent narrate the aftermath
+    def _leave_combat(combat_result: str) -> None:
+        nonlocal session
+        from src.combat import _is_dead
+        _campaign.last_combat_result = combat_result
+        _campaign.players = [p for p in _campaign.players if not _is_dead(p)]
+        session = None
+        print(f"\n{_hr()}")
+        print("  RETURNING TO THE STORY …")
+        print(_hr())
+        followup = HumanMessage(
+            content=f"The combat has ended. Result: {combat_result}. Continue the story."
+        )
+        messages.append(followup)
+        result = agent.invoke({"messages": messages})
+        messages[:] = result["messages"]
+        print(f"\nDM: {result['messages'][-1].content}")
+
     # Check if combat was already triggered by the opening scene
     if _campaign.active_combat is not None:
-        _run_combat_handoff(model, messages, agent)
+        _enter_combat()
 
     while True:
-        user_input = _prompt("You")
+        label = "Combat" if session is not None else "You"
+        user_input = _prompt(label)
         if not user_input:
             continue
 
-        messages.append(HumanMessage(content=user_input))
+        if session is not None:
+            # ── Combat mode: forward input directly to the game engine ────────
+            output = session.send(user_input)
+            if output.strip():
+                print(output)
 
-        result = agent.invoke({"messages": messages})
-        messages = result["messages"]
-        dm_reply = result["messages"][-1].content
-        print(f"\nDM: {dm_reply}")
-
-        # If the reply describes combat but the tool wasn't called, nudge once
-        if _campaign.active_combat is None and _has_combat_language(dm_reply):
-            nudge = (
-                "SYSTEM REMINDER: Your last response described combat starting, "
-                "but you did not call start_combat(). Call start_combat() right now "
-                "with the enemies you just mentioned. Only call the tool — no more narration."
-            )
-            messages.append(HumanMessage(content=nudge))
+            if session.is_game_over:
+                winner = session.winner or "unknown"
+                result_str = (
+                    f"The players won the battle against {_campaign.combat_setting}!"
+                    if winner == "players"
+                    else f"The party was defeated at {_campaign.combat_setting}."
+                )
+                _leave_combat(result_str)
+                # Story agent may itself trigger another encounter
+                if _campaign.active_combat is not None:
+                    _enter_combat()
+        else:
+            # ── Story mode: run through the story agent ───────────────────────
+            messages.append(HumanMessage(content=user_input))
             result = agent.invoke({"messages": messages})
             messages = result["messages"]
+            dm_reply = result["messages"][-1].content
+            print(f"\nDM: {dm_reply}")
 
-        # Did the DM trigger combat?
-        if _campaign.active_combat is not None:
-            messages = _run_combat_handoff(model, messages, agent)
+            # Nudge the agent if it described combat without calling start_combat()
+            if _campaign.active_combat is None and _has_combat_language(dm_reply):
+                nudge = (
+                    "SYSTEM REMINDER: Your last response described combat starting, "
+                    "but you did not call start_combat(). Call start_combat() right now "
+                    "with the enemies you just mentioned. Only call the tool — no narration."
+                )
+                messages.append(HumanMessage(content=nudge))
+                result = agent.invoke({"messages": messages})
+                messages = result["messages"]
 
-
-def _run_combat_handoff(
-    model: str,
-    story_messages: list,
-    story_agent,
-) -> list:
-    """Run the combat sub-loop, then feed the result back into the story."""
-    session = _campaign.active_combat
-    _campaign.active_combat = None   # clear before running so we don't re-enter
-
-    combat_result = run_combat_loop(session, model)
-    _campaign.last_combat_result = combat_result
-
-    # Remove dead characters from the active roster
-    from src.combat import _is_dead
-    _campaign.players = [p for p in _campaign.players if not _is_dead(p)]
-
-    print(f"\n{_hr()}")
-    print("  RETURNING TO THE STORY …")
-    print(_hr())
-
-    # Tell the story agent what happened so it can narrate the aftermath
-    followup = HumanMessage(
-        content=f"The combat has ended. Result: {combat_result}. Continue the story."
-    )
-    story_messages.append(followup)
-    result = story_agent.invoke({"messages": story_messages})
-    story_messages = result["messages"]
-    print(f"\nDM: {result['messages'][-1].content}")
-
-    # Check for nested combat (unlikely but safe)
-    if _campaign.active_combat is not None:
-        story_messages = _run_combat_handoff(model, story_messages, story_agent)
-
-    return story_messages
+            if _campaign.active_combat is not None:
+                _enter_combat()
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
@@ -323,35 +326,13 @@ def run(
     print(_hr())
 
     if combat is not None:
-        # ── Legacy / test mode: single combat, no story wrapping ──────────────
+        # ── Test mode: single combat, no story wrapping ───────────────────────
         from src.agent.session import GameSession
         session = GameSession(combat)
         _campaign.combat_setting = "Test Encounter"
-        set_session(session)
-        combat_agent = create_combat_agent(model=model)
-
-        initial = session.start()
-        if initial.strip():
-            print(initial)
-
-        conv: list = []
-        while not session.is_game_over:
-            state = session.get_state_description()
-            user_input = _prompt("You")
-            if not user_input:
-                user_input = "Take your turn."
-            conv.append(HumanMessage(
-                content=f"Current state:\n{state}\n\nInstruction: {user_input}"
-            ))
-            result = combat_agent.invoke({"messages": conv})
-            conv = result["messages"]
-            print(f"\nAgent: {result['messages'][-1].content}")
-            leftover = session._take_output()
-            if leftover.strip():
-                print(leftover)
-
+        result = run_combat_loop(session)
         print(f"\n{_hr()}")
-        print(f"  GAME OVER — {(session.winner or '?').upper()} WIN")
+        print(f"  {result}")
         print(_hr())
         return
 
